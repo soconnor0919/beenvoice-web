@@ -81,6 +81,7 @@ export const platformSettings = createTable("platform_setting", (d) => ({
 
 export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
+  apiKeys: many(apiKeys),
   clients: many(clients),
   businesses: many(businesses),
   invoices: many(invoices),
@@ -153,6 +154,42 @@ export const sessions = createTable(
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
   user: one(users, { fields: [sessions.userId], references: [users.id] }),
+}));
+
+export const apiKeys = createTable(
+  "api_key",
+  (d) => ({
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    name: d.varchar({ length: 100 }).notNull(),
+    keyHash: d.varchar({ length: 64 }).notNull().unique(),
+    keyPrefix: d.varchar({ length: 16 }).notNull(),
+    userId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    lastUsedAt: d.timestamp(),
+    expiresAt: d.timestamp(),
+    revokedAt: d.timestamp(),
+    createdAt: d.timestamp().notNull().defaultNow(),
+    updatedAt: d
+      .timestamp()
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  }),
+  (t) => [
+    index("api_key_hash_idx").on(t.keyHash),
+    index("api_key_user_id_idx").on(t.userId),
+    index("api_key_revoked_at_idx").on(t.revokedAt),
+  ],
+);
+
+export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
+  user: one(users, { fields: [apiKeys.userId], references: [users.id] }),
 }));
 
 export const verificationTokens = createTable(
