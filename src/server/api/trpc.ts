@@ -13,6 +13,7 @@ import { ZodError } from "zod";
 
 import { auth } from "~/lib/auth";
 import { db } from "~/server/db";
+import { getBearerToken, getUserForApiKey } from "~/server/api/api-keys";
 
 /**
  * 1. CONTEXT
@@ -27,6 +28,25 @@ import { db } from "~/server/db";
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
+  const bearerToken = getBearerToken(opts.headers);
+
+  if (bearerToken) {
+    const apiKeyAuth = await getUserForApiKey(db, bearerToken);
+
+    if (apiKeyAuth) {
+      return {
+        db,
+        session: {
+          user: apiKeyAuth.user,
+          session: null,
+        },
+        authSource: "api-key" as const,
+        apiKeyId: apiKeyAuth.apiKeyId,
+        ...opts,
+      };
+    }
+  }
+
   const session = await auth.api.getSession({
     headers: opts.headers,
   });
@@ -34,6 +54,8 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
   return {
     db,
     session,
+    authSource: session?.user ? ("session" as const) : ("none" as const),
+    apiKeyId: null,
     ...opts,
   };
 };

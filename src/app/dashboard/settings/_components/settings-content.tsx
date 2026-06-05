@@ -93,6 +93,7 @@ import {
   themePresets,
   type InterfaceTheme,
 } from "~/lib/branding";
+import { ApiAccessSettings } from "./api-access-settings";
 
 const PdfPreviewFrame = dynamic(
   () => import("./pdf-preview-frame").then((module) => module.PdfPreviewFrame),
@@ -492,10 +493,11 @@ export function SettingsContent() {
 
   return (
     <Tabs defaultValue="general">
-      <TabsList className="bg-muted/50 grid w-full grid-cols-3">
+      <TabsList className="bg-muted/50 grid w-full grid-cols-4">
         <TabsTrigger value="general">General</TabsTrigger>
         <TabsTrigger value="preferences">Preferences</TabsTrigger>
         <TabsTrigger value="data">Data</TabsTrigger>
+        <TabsTrigger value="api">API</TabsTrigger>
       </TabsList>
 
       <TabsContent value="general" className="space-y-8">
@@ -1647,6 +1649,10 @@ export function SettingsContent() {
             </AlertDialog>
           </CardContent>
         </Card>
+      </TabsContent>
+
+      <TabsContent value="api" className="space-y-8">
+        <ApiAccessSettings />
       </TabsContent>
     </Tabs>
   );
