@@ -14,7 +14,7 @@ export function proxy(request: NextRequest) {
   const publicRoutes = ["/", "/auth/signin", "/auth/register"];
 
   // Define API routes that should be handled separately
-  const apiRoutes = ["/api/auth", "/api/trpc"];
+  const apiRoutes = ["/api/auth", "/api/trpc", "/api/mcp"];
 
   // Allow API routes to pass through
   if (apiRoutes.some((route) => pathname.startsWith(route))) {
@@ -48,11 +48,12 @@ export const config = {
     /*
      * Match all request paths except for the ones starting with:
      * - api/auth (Auth.js API routes)
+     * - api/mcp (MCP API route)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder files
      */
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.svg$).*)",
+    "/((?!api/auth|api/mcp|_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.svg$).*)",
   ],
 };
