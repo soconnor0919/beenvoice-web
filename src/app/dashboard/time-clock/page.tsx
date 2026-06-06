@@ -92,8 +92,6 @@ export default function TimeClockPage() {
       };
       tick();
       intervalRef.current = setInterval(tick, 1000);
-    } else {
-      setElapsed(0);
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);

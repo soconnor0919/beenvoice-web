@@ -91,7 +91,7 @@ export const timeEntriesRouter = createTRPCRouter({
         });
       }
 
-      const clientId = input.clientId?.trim() || null;
+      const clientId = input.clientId?.trim() ?? null;
       if (clientId) {
         const client = await ctx.db.query.clients.findFirst({
           where: and(eq(clients.id, clientId), eq(clients.createdById, ctx.session.user.id)),
@@ -151,7 +151,7 @@ export const timeEntriesRouter = createTRPCRouter({
   create: protectedProcedure
     .input(createSchema)
     .mutation(async ({ ctx, input }) => {
-      const clientId = input.clientId?.trim() || null;
+      const clientId = input.clientId?.trim() ?? null;
       if (clientId) {
         const client = await ctx.db.query.clients.findFirst({
           where: and(eq(clients.id, clientId), eq(clients.createdById, ctx.session.user.id)),
@@ -173,7 +173,7 @@ export const timeEntriesRouter = createTRPCRouter({
           endedAt: input.endedAt ?? null,
           hours,
           rate: input.rate ?? null,
-          notes: input.notes?.trim() || null,
+          notes: input.notes?.trim() ?? null,
           createdById: ctx.session.user.id,
         })
         .returning();
@@ -209,7 +209,7 @@ export const timeEntriesRouter = createTRPCRouter({
         .set({
           ...data,
           clientId,
-          notes: data.notes?.trim() || null,
+          notes: data.notes?.trim() ?? null,
           updatedAt: new Date(),
         })
         .where(eq(timeEntries.id, id));
