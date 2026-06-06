@@ -133,6 +133,7 @@ export const timeEntriesRouter = createTRPCRouter({
         description: z.string().max(500).default(""),
         clientId: z.string().optional().or(z.literal("")),
         rate: z.number().min(0).optional(),
+        startedAt: z.date().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -157,12 +158,17 @@ export const timeEntriesRouter = createTRPCRouter({
         if (!client) throw new TRPCError({ code: "FORBIDDEN", message: "Client not found" });
       }
 
+      const startedAt = input.startedAt ?? new Date();
+      if (startedAt > new Date()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "startedAt cannot be in the future" });
+      }
+
       const [entry] = await ctx.db
         .insert(timeEntries)
         .values({
           description: input.description,
           clientId,
-          startedAt: new Date(),
+          startedAt,
           rate: input.rate ?? null,
           createdById: ctx.session.user.id,
         })

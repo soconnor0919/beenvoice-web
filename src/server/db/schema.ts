@@ -202,7 +202,7 @@ export const verificationTokens = createTable(
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()), // Matched DB: text
     identifier: d.varchar({ length: 255 }).notNull(),
-    value: d.varchar({ length: 255 }).notNull(),
+    value: d.text().notNull(),
     expiresAt: d.timestamp().notNull(),
     createdAt: d.timestamp().notNull().defaultNow(),
     updatedAt: d

@@ -409,13 +409,14 @@ const tools = {
   }),
   time_clock_in: defineTool({
     description:
-      "Start a time clock entry for the authenticated user. Fails if a timer is already running.",
+      "Start a time clock entry for the authenticated user. Fails if a timer is already running. Use startedAt to backdate the start time (e.g. if you forgot to clock in earlier). Cannot be in the future.",
     inputSchema: {
       type: "object",
       properties: {
         description: { type: "string", maxLength: 500 },
         clientId: { type: "string" },
         rate: { type: "number", minimum: 0 },
+        startedAt: { type: "string", format: "date-time", description: "Optional backdated start time (ISO 8601). Defaults to now." },
       },
       additionalProperties: false,
     },
@@ -423,8 +424,13 @@ const tools = {
       description: z.string().max(500).default(""),
       clientId: z.string().optional().or(z.literal("")),
       rate: z.number().min(0).optional(),
+      startedAt: z.string().optional(),
     }),
-    handler: async (input, caller) => caller.timeEntries.clockIn(input),
+    handler: async (input, caller) =>
+      caller.timeEntries.clockIn({
+        ...input,
+        startedAt: input.startedAt ? parseDate(input.startedAt, "startedAt") : undefined,
+      }),
   }),
   time_clock_out: defineTool({
     description:
