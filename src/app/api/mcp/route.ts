@@ -407,6 +407,102 @@ const tools = {
     schema: z.object({ id: z.string() }),
     handler: async (input, caller) => caller.businesses.delete(input),
   }),
+  time_clock_in: defineTool({
+    description:
+      "Start a time clock entry for the authenticated user. Fails if a timer is already running.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: { type: "string", maxLength: 500 },
+        clientId: { type: "string" },
+        rate: { type: "number", minimum: 0 },
+      },
+      additionalProperties: false,
+    },
+    schema: z.object({
+      description: z.string().max(500).default(""),
+      clientId: z.string().optional().or(z.literal("")),
+      rate: z.number().min(0).optional(),
+    }),
+    handler: async (input, caller) => caller.timeEntries.clockIn(input),
+  }),
+  time_clock_out: defineTool({
+    description:
+      "Stop the currently running timer for the authenticated user. Returns the completed time entry with computed hours.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: { type: "string", maxLength: 500 },
+      },
+      additionalProperties: false,
+    },
+    schema: z.object({
+      description: z.string().max(500).optional(),
+    }),
+    handler: async (input, caller) => caller.timeEntries.clockOut(input),
+  }),
+  time_get_running: defineTool({
+    description: "Get the currently running timer, if any. Returns null if no timer is running.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    schema: z.object({}).optional().default({}),
+    handler: async (_input, caller) => caller.timeEntries.getRunning(),
+  }),
+  time_entries_list: defineTool({
+    description: "List completed time entries for the authenticated user.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        clientId: { type: "string" },
+        from: { type: "string", format: "date-time" },
+        to: { type: "string", format: "date-time" },
+      },
+      additionalProperties: false,
+    },
+    schema: z.object({
+      clientId: z.string().optional(),
+      from: z.string().optional(),
+      to: z.string().optional(),
+    }),
+    handler: async (input, caller) =>
+      caller.timeEntries.getAll({
+        clientId: input.clientId,
+        from: input.from ? parseDate(input.from, "from") : undefined,
+        to: input.to ? parseDate(input.to, "to") : undefined,
+      }),
+  }),
+  time_entries_create: defineTool({
+    description:
+      "Create a manual time entry (for backdating or importing existing records). Hours are auto-computed from startedAt/endedAt if not provided.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: { type: "string", maxLength: 500 },
+        clientId: { type: "string" },
+        startedAt: { type: "string", format: "date-time" },
+        endedAt: { type: "string", format: "date-time" },
+        hours: { type: "number", minimum: 0 },
+        rate: { type: "number", minimum: 0 },
+        notes: { type: "string", maxLength: 500 },
+      },
+      required: ["startedAt"],
+      additionalProperties: false,
+    },
+    schema: z.object({
+      description: z.string().max(500).default(""),
+      clientId: z.string().optional().or(z.literal("")),
+      startedAt: dateString,
+      endedAt: dateString.optional(),
+      hours: z.number().min(0).optional(),
+      rate: z.number().min(0).optional(),
+      notes: z.string().max(500).optional(),
+    }),
+    handler: async (input, caller) =>
+      caller.timeEntries.create({
+        ...input,
+        startedAt: parseDate(input.startedAt, "startedAt"),
+        endedAt: input.endedAt ? parseDate(input.endedAt, "endedAt") : undefined,
+      }),
+  }),
 } satisfies Record<string, ToolDefinition>;
 
 function rpcResult(id: JsonRpcId, result: unknown, init?: ResponseInit) {

@@ -9,6 +9,7 @@ import { invoiceTemplatesRouter } from "~/server/api/routers/invoiceTemplates";
 import { paymentsRouter } from "~/server/api/routers/payments";
 import { recurringInvoicesRouter } from "~/server/api/routers/recurring-invoices";
 import { apiKeysRouter } from "~/server/api/routers/apiKeys";
+import { timeEntriesRouter } from "~/server/api/routers/time-entries";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 export const appRouter = createTRPCRouter({
@@ -23,6 +24,7 @@ export const appRouter = createTRPCRouter({
   payments: paymentsRouter,
   recurringInvoices: recurringInvoicesRouter,
   apiKeys: apiKeysRouter,
+  timeEntries: timeEntriesRouter,
 });
 
 // export type definition of API

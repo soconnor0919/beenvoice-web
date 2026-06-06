@@ -89,6 +89,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   expenses: many(expenses),
   invoiceTemplates: many(invoiceTemplates),
   recurringInvoices: many(recurringInvoices),
+  timeEntries: many(timeEntries),
 }));
 
 export const accounts = createTable(
@@ -282,6 +283,7 @@ export const clientsRelations = relations(clients, ({ one, many }) => ({
     references: [users.id],
   }),
   invoices: many(invoices),
+  timeEntries: many(timeEntries),
 }));
 
 export const businesses = createTable(
@@ -679,3 +681,51 @@ export const recurringInvoiceItemsRelations = relations(
     }),
   }),
 );
+
+// ─── Time Entries ─────────────────────────────────────────────────────────────
+
+export const timeEntries = createTable(
+  "time_entry",
+  (d) => ({
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    description: d.varchar({ length: 500 }).notNull().default(""),
+    clientId: d
+      .varchar({ length: 255 })
+      .references(() => clients.id, { onDelete: "set null" }),
+    startedAt: d.timestamp().notNull(),
+    endedAt: d.timestamp(), // null = currently running
+    hours: d.real(), // stored when stopped
+    rate: d.real(),
+    notes: d.varchar({ length: 500 }),
+    createdById: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: d
+      .timestamp()
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: d.timestamp().$onUpdate(() => new Date()),
+  }),
+  (t) => [
+    index("time_entry_created_by_idx").on(t.createdById),
+    index("time_entry_client_id_idx").on(t.clientId),
+    index("time_entry_started_at_idx").on(t.startedAt),
+    index("time_entry_ended_at_idx").on(t.endedAt),
+  ],
+);
+
+export const timeEntriesRelations = relations(timeEntries, ({ one }) => ({
+  client: one(clients, {
+    fields: [timeEntries.clientId],
+    references: [clients.id],
+  }),
+  createdBy: one(users, {
+    fields: [timeEntries.createdById],
+    references: [users.id],
+  }),
+}));

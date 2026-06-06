@@ -8,6 +8,7 @@ import {
   BarChart2,
   Shield,
   RefreshCw,
+  Clock,
 } from "lucide-react";
 
 export interface NavLink {
@@ -31,6 +32,7 @@ export const navigationConfig: NavSection[] = [
       { name: "Invoices", href: "/dashboard/invoices", icon: FileText },
       { name: "Recurring", href: "/dashboard/invoices/recurring", icon: RefreshCw },
       { name: "Expenses", href: "/dashboard/expenses", icon: Receipt },
+      { name: "Time Clock", href: "/dashboard/time-clock", icon: Clock },
       { name: "Reports", href: "/dashboard/reports", icon: BarChart2 },
     ],
   },
