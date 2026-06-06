@@ -243,6 +243,24 @@ async function isMigrationApplied(client: Pool, tag: string): Promise<boolean> {
   if (tag === "0008_payments_recurring_public_links") {
     return columnExists(client, "public", "beenvoice_invoice", "publicToken");
   }
+  if (tag === "0009_api_keys") {
+    return tableExists(client, "public", "beenvoice_api_key");
+  }
+  if (tag === "0010_time_entries") {
+    return tableExists(client, "public", "beenvoice_time_entry");
+  }
+  if (tag === "0011_time_entry_invoice_id") {
+    return columnExists(client, "public", "beenvoice_time_entry", "invoiceId");
+  }
+  if (tag === "0012_verification_token_value_text") {
+    const { rows } = await client.query<{ data_type: string }>(`
+      SELECT data_type FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'beenvoice_verification_token'
+        AND column_name = 'value'
+    `);
+    return rows[0]?.data_type === "text";
+  }
   // Unknown migration — assume not applied so it runs
   return false;
 }
