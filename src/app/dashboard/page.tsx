@@ -20,9 +20,20 @@ import { auth } from "~/lib/auth";
 import { headers } from "next/headers";
 import { HydrateClient, api } from "~/trpc/server";
 import type { StoredInvoiceStatus } from "~/types/invoice";
-import { RevenueChart } from "~/app/dashboard/_components/revenue-chart";
-import { InvoiceStatusChart } from "~/app/dashboard/_components/invoice-status-chart";
-import { MonthlyMetricsChart } from "~/app/dashboard/_components/monthly-metrics-chart";
+import dynamic from "next/dynamic";
+
+const RevenueChart = dynamic(
+  () => import("~/app/dashboard/_components/revenue-chart").then((m) => m.RevenueChart),
+  { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> },
+);
+const InvoiceStatusChart = dynamic(
+  () => import("~/app/dashboard/_components/invoice-status-chart").then((m) => m.InvoiceStatusChart),
+  { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> },
+);
+const MonthlyMetricsChart = dynamic(
+  () => import("~/app/dashboard/_components/monthly-metrics-chart").then((m) => m.MonthlyMetricsChart),
+  { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> },
+);
 import { AnimatedStatsCard } from "~/app/dashboard/_components/animated-stats-card";
 import type { DashboardStats, RecentInvoice } from "./types";
 
