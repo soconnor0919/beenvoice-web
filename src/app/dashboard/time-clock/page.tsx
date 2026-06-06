@@ -26,8 +26,9 @@ import {
 import { NumberInput } from "~/components/ui/number-input";
 import { DatePicker } from "~/components/ui/date-picker";
 import { toast } from "sonner";
-import { Clock, Play, Square, Plus, Pencil, Trash2 } from "lucide-react";
+import { Clock, Play, Square, Plus, Pencil, Trash2, FileText } from "lucide-react";
 import { formatCurrency } from "~/lib/currency";
+import Link from "next/link";
 
 function formatElapsed(seconds: number) {
   const h = Math.floor(seconds / 3600);
@@ -111,8 +112,19 @@ export default function TimeClockPage() {
   });
 
   const clockOut = api.timeEntries.clockOut.useMutation({
-    onSuccess: () => {
-      toast.success("Timer stopped");
+    onSuccess: (data) => {
+      if (data.invoice) {
+        const label = `${data.invoice.invoicePrefix}${data.invoice.invoiceNumber}`;
+        toast.success("Timer stopped", {
+          description: `Added to invoice ${label}`,
+          action: {
+            label: "View Invoice",
+            onClick: () => window.location.assign(`/dashboard/invoices/${data.invoice!.id}`),
+          },
+        });
+      } else {
+        toast.success("Timer stopped");
+      }
       void utils.timeEntries.getRunning.invalidate();
       void utils.timeEntries.getAll.invalidate();
       void utils.timeEntries.getSummary.invalidate();
@@ -121,8 +133,19 @@ export default function TimeClockPage() {
   });
 
   const create = api.timeEntries.create.useMutation({
-    onSuccess: () => {
-      toast.success("Entry added");
+    onSuccess: (data) => {
+      if (data.invoice) {
+        const label = `${data.invoice.invoicePrefix}${data.invoice.invoiceNumber}`;
+        toast.success("Entry added", {
+          description: `Added to invoice ${label}`,
+          action: {
+            label: "View Invoice",
+            onClick: () => window.location.assign(`/dashboard/invoices/${data.invoice!.id}`),
+          },
+        });
+      } else {
+        toast.success("Entry added");
+      }
       void utils.timeEntries.getAll.invalidate();
       void utils.timeEntries.getSummary.invalidate();
       setManualOpen(false);
@@ -395,6 +418,14 @@ export default function TimeClockPage() {
                         <Badge variant="secondary" className="text-xs">
                           {entry.client.name}
                         </Badge>
+                      )}
+                      {entry.invoice && (
+                        <Link href={`/dashboard/invoices/${entry.invoice.id}`}>
+                          <Badge variant="outline" className="gap-1 text-xs hover:bg-accent">
+                            <FileText className="h-3 w-3" />
+                            {entry.invoice.invoicePrefix}{entry.invoice.invoiceNumber}
+                          </Badge>
+                        </Link>
                       )}
                     </div>
                     <p className="text-muted-foreground mt-0.5 text-xs">

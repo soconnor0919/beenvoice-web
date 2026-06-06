@@ -428,7 +428,7 @@ const tools = {
   }),
   time_clock_out: defineTool({
     description:
-      "Stop the currently running timer for the authenticated user. Returns the completed time entry with computed hours.",
+      "Stop the currently running timer for the authenticated user. Returns the completed time entry with computed hours. If the entry has a client, a line item is automatically added to their latest open invoice and the invoice is returned in the 'invoice' field.",
     inputSchema: {
       type: "object",
       properties: {

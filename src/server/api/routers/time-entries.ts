@@ -1,8 +1,11 @@
 import { z } from "zod";
-import { eq, and, desc, isNull, isNotNull, gte, lte } from "drizzle-orm";
+import { eq, and, desc, isNull, isNotNull, gte, lte, or } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { timeEntries, clients } from "~/server/db/schema";
+import { timeEntries, clients, invoices, invoiceItems } from "~/server/db/schema";
 import { TRPCError } from "@trpc/server";
+import { db } from "~/server/db";
+
+type Db = typeof db;
 
 const createSchema = z.object({
   description: z.string().max(500).default(""),
@@ -19,6 +22,61 @@ const updateSchema = createSchema.partial().extend({ id: z.string() });
 function computeHours(startedAt: Date, endedAt: Date): number {
   const seconds = Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000);
   return Math.max(0.25, Math.ceil(seconds / 900) * 0.25);
+}
+
+async function addEntryToLatestInvoice(
+  database: Db,
+  userId: string,
+  clientId: string,
+  entryId: string,
+  description: string,
+  hours: number,
+  rate: number,
+  date: Date,
+): Promise<{ id: string; invoiceNumber: string; invoicePrefix: string } | null> {
+  const invoice = await database.query.invoices.findFirst({
+    where: and(
+      eq(invoices.clientId, clientId),
+      eq(invoices.createdById, userId),
+      or(eq(invoices.status, "draft"), eq(invoices.status, "sent")),
+    ),
+    with: { items: true },
+    orderBy: [desc(invoices.createdAt)],
+  });
+
+  if (!invoice) return null;
+
+  const amount = hours * rate;
+  const maxPosition = invoice.items.reduce((m, item) => Math.max(m, item.position), -1);
+
+  await database.insert(invoiceItems).values({
+    invoiceId: invoice.id,
+    date,
+    description,
+    hours,
+    rate,
+    amount,
+    position: maxPosition + 1,
+  });
+
+  const subtotal = invoice.items.reduce((s, i) => s + i.amount, 0) + amount;
+  const newTotal = subtotal + (subtotal * invoice.taxRate) / 100;
+
+  await database
+    .update(invoices)
+    .set({ totalAmount: newTotal, updatedAt: new Date() })
+    .where(eq(invoices.id, invoice.id));
+
+  await database
+    .update(timeEntries)
+    .set({ invoiceId: invoice.id, updatedAt: new Date() })
+    .where(eq(timeEntries.id, entryId));
+
+  return {
+    id: invoice.id,
+    invoiceNumber: invoice.invoiceNumber,
+    invoicePrefix: invoice.invoicePrefix ?? "#",
+  };
 }
 
 export const timeEntriesRouter = createTRPCRouter({
@@ -40,7 +98,7 @@ export const timeEntriesRouter = createTRPCRouter({
 
       return ctx.db.query.timeEntries.findMany({
         where: and(...conditions),
-        with: { client: true },
+        with: { client: true, invoice: { columns: { id: true, invoiceNumber: true, invoicePrefix: true } } },
         orderBy: [desc(timeEntries.startedAt)],
       });
     }),
@@ -145,7 +203,23 @@ export const timeEntriesRouter = createTRPCRouter({
         .where(eq(timeEntries.id, entry.id))
         .returning();
 
-      return updated;
+      if (!updated) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Clock out failed" });
+
+      let linkedInvoice: { id: string; invoiceNumber: string; invoicePrefix: string } | null = null;
+      if (entry.clientId && hours > 0) {
+        linkedInvoice = await addEntryToLatestInvoice(
+          ctx.db,
+          ctx.session.user.id,
+          entry.clientId,
+          updated.id,
+          description,
+          hours,
+          entry.rate ?? 0,
+          endedAt,
+        );
+      }
+
+      return { entry: updated, invoice: linkedInvoice };
     }),
 
   create: protectedProcedure
@@ -178,7 +252,23 @@ export const timeEntriesRouter = createTRPCRouter({
         })
         .returning();
 
-      return entry;
+      if (!entry) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Create failed" });
+
+      let linkedInvoice: { id: string; invoiceNumber: string; invoicePrefix: string } | null = null;
+      if (clientId && hours && input.endedAt) {
+        linkedInvoice = await addEntryToLatestInvoice(
+          ctx.db,
+          ctx.session.user.id,
+          clientId,
+          entry.id,
+          input.description,
+          hours,
+          input.rate ?? 0,
+          input.endedAt,
+        );
+      }
+
+      return { entry, invoice: linkedInvoice };
     }),
 
   update: protectedProcedure

@@ -696,6 +696,9 @@ export const timeEntries = createTable(
     clientId: d
       .varchar({ length: 255 })
       .references(() => clients.id, { onDelete: "set null" }),
+    invoiceId: d
+      .varchar({ length: 255 })
+      .references(() => invoices.id, { onDelete: "set null" }),
     startedAt: d.timestamp().notNull(),
     endedAt: d.timestamp(), // null = currently running
     hours: d.real(), // stored when stopped
@@ -723,6 +726,10 @@ export const timeEntriesRelations = relations(timeEntries, ({ one }) => ({
   client: one(clients, {
     fields: [timeEntries.clientId],
     references: [clients.id],
+  }),
+  invoice: one(invoices, {
+    fields: [timeEntries.invoiceId],
+    references: [invoices.id],
   }),
   createdBy: one(users, {
     fields: [timeEntries.createdById],
