@@ -273,6 +273,25 @@ export const exampleRouter = createTRPCRouter({
 - **User Relations**: All business data linked to users
 - **Indexes**: Proper indexing for performance
 
+### Migrations
+When adding a new migration:
+1. Create the SQL file in `drizzle/` following the numbering sequence (e.g. `0011_my_change.sql`)
+2. **Always update `drizzle/meta/_journal.json`** to include the new entry — Drizzle's migrate runner uses this file to determine which migrations to apply. If the entry is missing, the migration will be silently skipped on deploy.
+
+The journal entry format:
+```json
+{
+  "idx": 10,
+  "version": "7",
+  "when": 1780704000000,
+  "tag": "0010_my_change",
+  "breakpoints": true
+}
+```
+Use a Unix timestamp in milliseconds for `when`, incrementing `idx` by 1 from the previous entry.
+
+Migrations run automatically at container startup via `bun migrate.ts` (see Dockerfile `CMD`). Do not run them manually.
+
 ### Relationships
 - **Users → Clients**: One-to-many
 - **Users → Businesses**: One-to-many
