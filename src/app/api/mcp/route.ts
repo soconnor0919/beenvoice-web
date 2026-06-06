@@ -234,7 +234,7 @@ function parseInvoiceItems(items: z.infer<typeof invoiceItemSchema>[]) {
 
 function textResult(data: unknown): ToolResult {
   return {
-    content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    content: [{ type: "text", text: JSON.stringify(data ?? null, null, 2) }],
   };
 }
 
@@ -507,6 +507,67 @@ const tools = {
         ...input,
         startedAt: parseDate(input.startedAt, "startedAt"),
         endedAt: input.endedAt ? parseDate(input.endedAt, "endedAt") : undefined,
+      }),
+  }),
+  time_entries_update: defineTool({
+    description: "Update an existing time entry by ID. All fields are optional except id.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        description: { type: "string", maxLength: 500 },
+        clientId: { type: "string" },
+        startedAt: { type: "string", format: "date-time" },
+        endedAt: { type: "string", format: "date-time" },
+        hours: { type: "number", minimum: 0 },
+        rate: { type: "number", minimum: 0 },
+        notes: { type: "string", maxLength: 500 },
+      },
+      required: ["id"],
+      additionalProperties: false,
+    },
+    schema: z.object({
+      id: z.string(),
+      description: z.string().max(500).optional(),
+      clientId: z.string().optional().or(z.literal("")),
+      startedAt: dateString.optional(),
+      endedAt: dateString.optional(),
+      hours: z.number().min(0).optional(),
+      rate: z.number().min(0).optional(),
+      notes: z.string().max(500).optional().or(z.literal("")),
+    }),
+    handler: async (input, caller) =>
+      caller.timeEntries.update({
+        ...input,
+        startedAt: input.startedAt ? parseDate(input.startedAt, "startedAt") : undefined,
+        endedAt: input.endedAt ? parseDate(input.endedAt, "endedAt") : undefined,
+      }),
+  }),
+  time_entries_delete: defineTool({
+    description: "Delete a time entry by ID.",
+    inputSchema: jsonSchemas.id,
+    schema: z.object({ id: z.string() }),
+    handler: async (input, caller) => caller.timeEntries.delete(input),
+  }),
+  time_entries_get_summary: defineTool({
+    description:
+      "Get total hours, total earnings, and entry count for the authenticated user, optionally filtered by date range.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        from: { type: "string", format: "date-time" },
+        to: { type: "string", format: "date-time" },
+      },
+      additionalProperties: false,
+    },
+    schema: z.object({
+      from: dateString.optional(),
+      to: dateString.optional(),
+    }),
+    handler: async (input, caller) =>
+      caller.timeEntries.getSummary({
+        from: input.from ? parseDate(input.from, "from") : undefined,
+        to: input.to ? parseDate(input.to, "to") : undefined,
       }),
   }),
 } satisfies Record<string, ToolDefinition>;
