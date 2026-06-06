@@ -209,6 +209,12 @@ export default function TimeClockPage() {
 
   const completedEntries = entries.filter((e) => e.endedAt !== null);
 
+  // Live estimate for running timer, rounded up to 15-min increments (no minimum while running)
+  const estimatedHours = running ? Math.ceil(elapsed / 900) * 0.25 : 0;
+  const estimatedEarnings = running ? estimatedHours * (running.rate ?? 0) : 0;
+  const displayHours = (summary?.totalHours ?? 0) + estimatedHours;
+  const displayEarnings = (summary?.totalEarnings ?? 0) + estimatedEarnings;
+
   return (
     <div className="page-enter space-y-6 pb-6">
       <PageHeader
@@ -236,8 +242,13 @@ export default function TimeClockPage() {
               Total Hours
             </p>
             <p className="mt-1 text-2xl font-bold">
-              {formatDuration(summary?.totalHours)}
+              {formatDuration(displayHours || undefined)}
             </p>
+            {running && estimatedHours > 0 && (
+              <p className="text-muted-foreground mt-0.5 text-xs">
+                +{formatDuration(estimatedHours)} est.
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -246,8 +257,13 @@ export default function TimeClockPage() {
               Earnings
             </p>
             <p className="text-primary mt-1 text-2xl font-bold">
-              {formatCurrency(summary?.totalEarnings ?? 0)}
+              {formatCurrency(displayEarnings)}
             </p>
+            {running && estimatedEarnings > 0 && (
+              <p className="text-muted-foreground mt-0.5 text-xs">
+                +{formatCurrency(estimatedEarnings)} est.
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card className="col-span-2 sm:col-span-1">
