@@ -81,6 +81,45 @@ const invoiceUpdateSchema = invoiceCreateSchema.partial().extend({
   id: z.string(),
 });
 
+const expenseCreateSchema = z.object({
+  date: dateString,
+  description: z.string().min(1),
+  amount: z.number().min(0),
+  currency: z.string().length(3).default("USD"),
+  category: z.string().optional().or(z.literal("")),
+  billable: z.boolean().default(false),
+  reimbursable: z.boolean().default(false),
+  taxDeductible: z.boolean().default(false),
+  notes: z.string().optional().or(z.literal("")),
+  clientId: z.string().optional().or(z.literal("")),
+  businessId: z.string().optional().or(z.literal("")),
+  invoiceId: z.string().optional().or(z.literal("")),
+});
+
+const expenseUpdateSchema = expenseCreateSchema.partial().extend({ id: z.string() });
+
+const recurringItemSchema = z.object({
+  description: z.string().min(1),
+  hours: z.number().min(0),
+  rate: z.number().min(0),
+  position: z.number().int().default(0),
+});
+
+const recurringCreateSchema = z.object({
+  name: z.string().min(1).max(255),
+  clientId: z.string().min(1),
+  businessId: z.string().optional().or(z.literal("")),
+  schedule: z.enum(["weekly", "biweekly", "monthly", "quarterly", "yearly"]),
+  invoicePrefix: z.string().optional().default("#"),
+  taxRate: z.number().min(0).max(100).default(0),
+  currency: z.string().length(3).default("USD"),
+  notes: z.string().optional().or(z.literal("")),
+  emailMessage: z.string().optional().or(z.literal("")),
+  items: z.array(recurringItemSchema).min(1),
+});
+
+const recurringUpdateSchema = recurringCreateSchema.extend({ id: z.string() });
+
 const jsonSchemas = {
   empty: { type: "object", properties: {}, additionalProperties: false },
   id: {
@@ -189,6 +228,94 @@ const jsonSchemas = {
       isDefault: { type: "boolean" },
     },
     required: ["name"],
+    additionalProperties: false,
+  },
+  expenseCreate: {
+    type: "object",
+    properties: {
+      date: { type: "string", format: "date-time" },
+      description: { type: "string", minLength: 1 },
+      amount: { type: "number", minimum: 0 },
+      currency: { type: "string", minLength: 3, maxLength: 3 },
+      category: { type: "string", enum: ["Travel", "Meals & Entertainment", "Software & Subscriptions", "Hardware & Equipment", "Office Supplies", "Marketing", "Professional Services", "Utilities", "Other"] },
+      billable: { type: "boolean" },
+      reimbursable: { type: "boolean" },
+      taxDeductible: { type: "boolean" },
+      notes: { type: "string", maxLength: 500 },
+      clientId: { type: "string" },
+      businessId: { type: "string" },
+      invoiceId: { type: "string" },
+    },
+    required: ["date", "description", "amount"],
+    additionalProperties: false,
+  },
+  recurringItem: {
+    type: "object",
+    properties: {
+      description: { type: "string", minLength: 1 },
+      hours: { type: "number", minimum: 0 },
+      rate: { type: "number", minimum: 0 },
+      position: { type: "integer" },
+    },
+    required: ["description", "hours", "rate"],
+    additionalProperties: false,
+  },
+  recurringCreate: {
+    type: "object",
+    properties: {
+      name: { type: "string", minLength: 1, maxLength: 255 },
+      clientId: { type: "string", minLength: 1 },
+      businessId: { type: "string" },
+      schedule: { type: "string", enum: ["weekly", "biweekly", "monthly", "quarterly", "yearly"] },
+      invoicePrefix: { type: "string" },
+      taxRate: { type: "number", minimum: 0, maximum: 100 },
+      currency: { type: "string", minLength: 3, maxLength: 3 },
+      notes: { type: "string" },
+      emailMessage: { type: "string" },
+      items: {
+        type: "array",
+        minItems: 1,
+        items: {
+          type: "object",
+          properties: {
+            description: { type: "string", minLength: 1 },
+            hours: { type: "number", minimum: 0 },
+            rate: { type: "number", minimum: 0 },
+            position: { type: "integer" },
+          },
+          required: ["description", "hours", "rate"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["name", "clientId", "schedule", "items"],
+    additionalProperties: false,
+  },
+  invoiceSend: {
+    type: "object",
+    properties: {
+      invoiceId: { type: "string" },
+      customSubject: { type: "string" },
+      customMessage: { type: "string" },
+      ccEmails: { type: "string", description: "Comma-separated CC email addresses" },
+      bccEmails: { type: "string", description: "Comma-separated BCC email addresses" },
+    },
+    required: ["invoiceId"],
+    additionalProperties: false,
+  },
+  bulkIds: {
+    type: "object",
+    properties: { ids: { type: "array", items: { type: "string" }, minItems: 1 } },
+    required: ["ids"],
+    additionalProperties: false,
+  },
+  bulkStatus: {
+    type: "object",
+    properties: {
+      ids: { type: "array", items: { type: "string" }, minItems: 1 },
+      status: { type: "string", enum: ["draft", "sent", "paid"] },
+    },
+    required: ["ids", "status"],
     additionalProperties: false,
   },
 } as const;
@@ -571,6 +698,166 @@ const tools = {
         from: input.from ? parseDate(input.from, "from") : undefined,
         to: input.to ? parseDate(input.to, "to") : undefined,
       }),
+  }),
+  // ── Expenses ────────────────────────────────────────────────────────────────
+  expenses_list: defineTool({
+    description: "List all expenses for the authenticated user, ordered by date descending.",
+    inputSchema: jsonSchemas.empty,
+    schema: z.object({}).optional().default({}),
+    handler: async (_input, caller) => caller.expenses.getAll(),
+  }),
+  expenses_get: defineTool({
+    description: "Get a single expense by ID.",
+    inputSchema: jsonSchemas.id,
+    schema: z.object({ id: z.string() }),
+    handler: async (input, caller) => caller.expenses.getById(input),
+  }),
+  expenses_create: defineTool({
+    description: "Create an expense. Category must be one of the allowed values. Set billable=true if this will be charged to a client, taxDeductible=true for tax purposes.",
+    inputSchema: jsonSchemas.expenseCreate,
+    schema: expenseCreateSchema,
+    handler: async (input, caller) =>
+      caller.expenses.create({
+        ...input,
+        date: parseDate(input.date, "date"),
+      }),
+  }),
+  expenses_update: defineTool({
+    description: "Update an existing expense by ID. All fields are optional except id.",
+    inputSchema: {
+      ...jsonSchemas.expenseCreate,
+      required: ["id"],
+      properties: { id: { type: "string" }, ...jsonSchemas.expenseCreate.properties },
+    },
+    schema: expenseUpdateSchema,
+    handler: async (input, caller) =>
+      caller.expenses.update({
+        ...input,
+        date: input.date ? parseDate(input.date, "date") : undefined,
+      }),
+  }),
+  expenses_delete: defineTool({
+    description: "Delete an expense by ID.",
+    inputSchema: jsonSchemas.id,
+    schema: z.object({ id: z.string() }),
+    handler: async (input, caller) => caller.expenses.delete(input),
+  }),
+
+  // ── Recurring Invoices ───────────────────────────────────────────────────────
+  recurring_list: defineTool({
+    description: "List all recurring invoice templates for the authenticated user, ordered by next due date.",
+    inputSchema: jsonSchemas.empty,
+    schema: z.object({}).optional().default({}),
+    handler: async (_input, caller) => caller.recurringInvoices.getAll(),
+  }),
+  recurring_create: defineTool({
+    description: "Create a recurring invoice template. Invoices will be auto-generated on the given schedule. Items are line item templates (description, hours, rate).",
+    inputSchema: jsonSchemas.recurringCreate,
+    schema: recurringCreateSchema,
+    handler: async (input, caller) => caller.recurringInvoices.create(input),
+  }),
+  recurring_update: defineTool({
+    description: "Update a recurring invoice template. Replaces all items.",
+    inputSchema: {
+      ...jsonSchemas.recurringCreate,
+      required: ["id", "name", "clientId", "schedule", "items"],
+      properties: { id: { type: "string" }, ...jsonSchemas.recurringCreate.properties },
+    },
+    schema: recurringUpdateSchema,
+    handler: async (input, caller) => caller.recurringInvoices.update(input),
+  }),
+  recurring_pause: defineTool({
+    description: "Pause a recurring invoice template. No invoices will be generated until resumed.",
+    inputSchema: jsonSchemas.id,
+    schema: z.object({ id: z.string() }),
+    handler: async (input, caller) => caller.recurringInvoices.pause(input),
+  }),
+  recurring_resume: defineTool({
+    description: "Resume a paused recurring invoice template.",
+    inputSchema: jsonSchemas.id,
+    schema: z.object({ id: z.string() }),
+    handler: async (input, caller) => caller.recurringInvoices.resume(input),
+  }),
+  recurring_generate_now: defineTool({
+    description: "Immediately generate a draft invoice from a recurring template, regardless of schedule. Returns the new invoice ID.",
+    inputSchema: jsonSchemas.id,
+    schema: z.object({ id: z.string() }),
+    handler: async (input, caller) => caller.recurringInvoices.generateNow(input),
+  }),
+  recurring_delete: defineTool({
+    description: "Delete a recurring invoice template by ID.",
+    inputSchema: jsonSchemas.id,
+    schema: z.object({ id: z.string() }),
+    handler: async (input, caller) => caller.recurringInvoices.delete(input),
+  }),
+
+  // ── Dashboard ────────────────────────────────────────────────────────────────
+  dashboard_get_stats: defineTool({
+    description: "Get a business overview: total revenue (paid invoices), pending amount (sent/overdue invoices), overdue invoice count, total clients, month-over-month revenue change percentage, 6-month revenue chart data, and 5 most recent invoices.",
+    inputSchema: jsonSchemas.empty,
+    schema: z.object({}).optional().default({}),
+    handler: async (_input, caller) => caller.dashboard.getStats(),
+  }),
+
+  // ── Invoice extras ───────────────────────────────────────────────────────────
+  invoices_get_current_open: defineTool({
+    description: "Get the most recent draft invoice for the authenticated user. Useful for quickly finding the active working invoice.",
+    inputSchema: jsonSchemas.empty,
+    schema: z.object({}).optional().default({}),
+    handler: async (_input, caller) => caller.invoices.getCurrentOpen(),
+  }),
+  invoices_send: defineTool({
+    description: "Send an invoice to the client via email with a PDF attachment. Updates the invoice status to 'sent'. Requires email to be configured (Resend API key on the business or platform).",
+    inputSchema: jsonSchemas.invoiceSend,
+    schema: z.object({
+      invoiceId: z.string(),
+      customSubject: z.string().optional(),
+      customMessage: z.string().optional(),
+      ccEmails: z.string().optional(),
+      bccEmails: z.string().optional(),
+    }),
+    handler: async (input, caller) => caller.email.sendInvoice({ ...input, useHtml: false }),
+  }),
+  invoices_send_reminder: defineTool({
+    description: "Send a payment reminder email to the client for a sent or overdue invoice.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        customMessage: { type: "string", description: "Optional custom message to include in the reminder" },
+      },
+      required: ["id"],
+      additionalProperties: false,
+    },
+    schema: z.object({ id: z.string(), customMessage: z.string().optional() }),
+    handler: async (input, caller) => caller.invoices.sendReminder(input),
+  }),
+  invoices_generate_public_token: defineTool({
+    description: "Generate a shareable public link token for an invoice. Clients can view the invoice without logging in.",
+    inputSchema: jsonSchemas.id,
+    schema: z.object({ id: z.string() }),
+    handler: async (input, caller) => caller.invoices.generatePublicToken(input),
+  }),
+  invoices_revoke_public_token: defineTool({
+    description: "Revoke the public shareable link for an invoice, making it inaccessible without authentication.",
+    inputSchema: jsonSchemas.id,
+    schema: z.object({ id: z.string() }),
+    handler: async (input, caller) => caller.invoices.revokePublicToken(input),
+  }),
+  invoices_bulk_update_status: defineTool({
+    description: "Update the status of multiple invoices at once.",
+    inputSchema: jsonSchemas.bulkStatus,
+    schema: z.object({
+      ids: z.array(z.string()).min(1),
+      status: z.enum(["draft", "sent", "paid"]),
+    }),
+    handler: async (input, caller) => caller.invoices.bulkUpdateStatus(input),
+  }),
+  invoices_bulk_delete: defineTool({
+    description: "Delete multiple invoices at once.",
+    inputSchema: jsonSchemas.bulkIds,
+    schema: z.object({ ids: z.array(z.string()).min(1) }),
+    handler: async (input, caller) => caller.invoices.bulkDelete(input),
   }),
 } satisfies Record<string, ToolDefinition>;
 
