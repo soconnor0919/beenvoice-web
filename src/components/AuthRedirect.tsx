@@ -5,16 +5,27 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export function AuthRedirect() {
-  const { data: session, isPending } = authClient.useSession();
-  // const session = { user: null }; const isPending = false;
   const router = useRouter();
 
   useEffect(() => {
-    // Only redirect if we're sure the user is authenticated
-    if (!isPending && session?.user) {
-      router.push("/dashboard");
+    let isCurrent = true;
+
+    async function redirectAuthenticatedUser() {
+      const { data: session } = await authClient.getSession().catch(() => ({
+        data: null,
+      }));
+
+      if (isCurrent && session?.user) {
+        router.push("/dashboard");
+      }
     }
-  }, [session, isPending, router]);
+
+    void redirectAuthenticatedUser();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [router]);
 
   // This component doesn't render anything
   return null;
