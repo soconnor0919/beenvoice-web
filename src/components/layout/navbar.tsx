@@ -6,6 +6,7 @@ import { Logo } from "~/components/branding/logo";
 import { SidebarTrigger } from "~/components/navigation/sidebar-trigger";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
+import { useAuthSession } from "~/hooks/use-auth-session";
 import { useRouter } from "next/navigation";
 
 interface NavbarProps {
@@ -13,8 +14,7 @@ interface NavbarProps {
 }
 
 export function Navbar({ allowRegistration = true }: NavbarProps) {
-  const { data: session, isPending } = authClient.useSession();
-  // const session = { user: null } as any; const isPending = false;
+  const { data: session, isPending } = useAuthSession();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const router = useRouter();
 

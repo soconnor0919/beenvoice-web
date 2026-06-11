@@ -92,6 +92,13 @@
       "when": 1749340800000,
       "tag": "0012_verification_token_value_text",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1781194385000,
+      "tag": "0013_invoice_public_token_expiry",
+      "breakpoints": true
     }
   ]
 }

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { authClient } from "~/lib/auth-client";
+import { useAuthSession } from "~/hooks/use-auth-session";
 import * as React from "react";
 import { useState } from "react";
 
@@ -178,8 +179,7 @@ function isFullHexColor(value: string) {
 }
 
 export function SettingsContent() {
-  const { data: session } = authClient.useSession();
-  // const session = { user: null } as any;
+  const { data: session } = useAuthSession();
   const [name, setName] = useState("");
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [importData, setImportData] = useState("");

@@ -27,6 +27,7 @@ import {
 import { getGravatarUrl } from "~/lib/gravatar";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { useAppearance } from "~/components/providers/appearance-provider";
+import { useAuthSession } from "~/hooks/use-auth-session";
 
 interface SidebarProps {
   mobile?: boolean;
@@ -35,8 +36,7 @@ interface SidebarProps {
 
 export function Sidebar({ mobile, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { data: session, isPending } = authClient.useSession();
-  // const session = { user: null } as any; const isPending = false;
+  const { data: session, isPending } = useAuthSession();
   const { isCollapsed, toggleCollapse } = useSidebar();
   const { sidebarStyle } = useAppearance();
 

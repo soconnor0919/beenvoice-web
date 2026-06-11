@@ -1,11 +1,11 @@
 "use client";
 
 import { MenuIcon, X } from "lucide-react";
-import { authClient } from "~/lib/auth-client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
+import { useAuthSession } from "~/hooks/use-auth-session";
 import { navigationConfig } from "~/lib/navigation";
 
 interface SidebarTriggerProps {
@@ -15,8 +15,7 @@ interface SidebarTriggerProps {
 
 export function SidebarTrigger({ isOpen, onToggle }: SidebarTriggerProps) {
   const pathname = usePathname();
-  const { isPending } = authClient.useSession();
-  // const isPending = false;
+  const { isPending } = useAuthSession();
 
   return (
     <>
