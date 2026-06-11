@@ -6,6 +6,8 @@ import { Button } from "~/components/ui/button";
 import { env } from "~/env";
 import { brand } from "~/lib/branding";
 
+export const dynamic = "force-dynamic";
+
 export default function HomePage() {
   const allowRegistration = env.DISABLE_SIGNUPS !== true;
 
