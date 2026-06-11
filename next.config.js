@@ -8,7 +8,7 @@ import "./src/env.js";
 const config = {
   output: "standalone",
   reactCompiler: true,
-  serverExternalPackages: ["pg"],
+  serverExternalPackages: ["pg", "better-auth"],
 };
 
 export default config;

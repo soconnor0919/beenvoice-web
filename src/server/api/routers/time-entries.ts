@@ -3,7 +3,7 @@ import { eq, and, desc, isNull, isNotNull, gte, lte, or } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { timeEntries, clients, invoices, invoiceItems } from "~/server/db/schema";
 import { TRPCError } from "@trpc/server";
-import { db } from "~/server/db";
+import type { db } from "~/server/db";
 
 type Db = typeof db;
 
