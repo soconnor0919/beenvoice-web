@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "next build && cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public",
+    "build": "next build",
     "check": "eslint . && tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun src/server/db/migrate.ts",
@@ -20,8 +20,8 @@
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
-    "preview": "next build && node .next/standalone/server.js",
-    "start": "node .next/standalone/server.js",
+    "preview": "next build && next start",
+    "start": "next start",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -23,8 +23,7 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 
-COPY --from=build /usr/src/app/.next/standalone ./
-COPY --from=build /usr/src/app/.next/static ./.next/static
+COPY --from=build /usr/src/app/.next ./.next
 COPY --from=build /usr/src/app/public ./public
 COPY --from=install /usr/src/app/node_modules node_modules
 COPY --from=build /usr/src/app/package.json ./package.json
@@ -36,4 +35,4 @@ RUN chmod -R a+rX drizzle public migrate.ts
 
 USER bun
 EXPOSE 3000
-CMD ["sh", "-c", "bun migrate.ts && bun server.js"]
+CMD ["sh", "-c", "bun migrate.ts && bun run start"]
