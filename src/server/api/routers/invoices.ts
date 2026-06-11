@@ -644,7 +644,7 @@ export const invoicesRouter = createTRPCRouter({
   // ── Public token (shareable link) ──────────────────────────────────────────
 
   generatePublicToken: protectedProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: z.string(), ttlHours: z.number().positive().optional() }))
     .mutation(async ({ ctx, input }) => {
       const invoice = await ctx.db.query.invoices.findFirst({
         where: eq(invoices.id, input.id),
@@ -653,11 +653,14 @@ export const invoicesRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND" });
       }
       const token = crypto.randomUUID();
+      const expiresAt = input.ttlHours
+        ? new Date(Date.now() + input.ttlHours * 3_600_000)
+        : null;
       await ctx.db
         .update(invoices)
-        .set({ publicToken: token })
+        .set({ publicToken: token, publicTokenExpiresAt: expiresAt })
         .where(eq(invoices.id, input.id));
-      return { token };
+      return { token, expiresAt };
     }),
 
   revokePublicToken: protectedProcedure
@@ -684,6 +687,9 @@ export const invoicesRouter = createTRPCRouter({
         with: { client: true, business: true, items: { orderBy: (i, { asc }) => [asc(i.position)] } },
       });
       if (!invoice) throw new TRPCError({ code: "NOT_FOUND" });
+      if (invoice.publicTokenExpiresAt && new Date(invoice.publicTokenExpiresAt) < new Date()) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "This link has expired" });
+      }
       return invoice;
     }),
 

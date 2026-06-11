@@ -843,10 +843,26 @@ const tools = {
     handler: async (input, caller) => caller.invoices.sendReminder(input),
   }),
   invoices_generate_public_token: defineTool({
-    description: "Generate a shareable public link token for an invoice. Clients can view the invoice without logging in.",
-    inputSchema: jsonSchemas.id,
-    schema: z.object({ id: z.string() }),
-    handler: async (input, caller) => caller.invoices.generatePublicToken(input),
+    description: "Generate a shareable public link for an invoice. Returns a web view URL (/i/{token}) and a direct PDF URL (/api/i/{token}/pdf). Set ttlHours to make the link expire automatically (e.g. 24 for a 24-hour preview link). Omit ttlHours for a permanent link.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        ttlHours: { type: "number", exclusiveMinimum: 0, description: "Hours until the link expires. Omit for a permanent link." },
+      },
+      required: ["id"],
+      additionalProperties: false,
+    },
+    schema: z.object({ id: z.string(), ttlHours: z.number().positive().optional() }),
+    handler: async (input, caller) => {
+      const result = await caller.invoices.generatePublicToken(input);
+      const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+      return {
+        ...result,
+        webUrl: `${base}/i/${result.token}`,
+        pdfUrl: `${base}/api/i/${result.token}/pdf`,
+      };
+    },
   }),
   invoices_revoke_public_token: defineTool({
     description: "Revoke the public shareable link for an invoice, making it inaccessible without authentication.",

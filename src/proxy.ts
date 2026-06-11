@@ -14,7 +14,7 @@ export function proxy(request: NextRequest) {
   const publicRoutes = ["/", "/auth/signin", "/auth/register"];
 
   // Define API routes that should be handled separately
-  const apiRoutes = ["/api/auth", "/api/trpc", "/api/mcp"];
+  const apiRoutes = ["/api/auth", "/api/trpc", "/api/mcp", "/api/i"];
 
   // Allow API routes to pass through
   if (apiRoutes.some((route) => pathname.startsWith(route))) {

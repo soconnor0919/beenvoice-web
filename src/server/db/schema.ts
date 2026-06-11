@@ -367,6 +367,7 @@ export const invoices = createTable(
       .notNull()
       .references(() => users.id),
     publicToken: d.varchar({ length: 255 }).unique(),
+    publicTokenExpiresAt: d.timestamp(),
     lastReminderSentAt: d.timestamp(),
     createdAt: d
       .timestamp()
