@@ -58,6 +58,10 @@ export function ActiveTimerWidget() {
 
   if (isLoading || !running) return null;
 
+  const invoiceLabel = running.invoice
+    ? `${running.invoice.invoicePrefix ?? "#"}${running.invoice.invoiceNumber}`
+    : null;
+
   return (
     <Card className="border-primary/30 bg-primary/5">
       <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
@@ -77,11 +81,23 @@ export function ActiveTimerWidget() {
             )}
           </p>
           <p className="text-muted-foreground text-xs">
-            Started{" "}
-            {new Intl.DateTimeFormat("en-US", {
-              hour: "numeric",
-              minute: "2-digit",
-            }).format(new Date(running.startedAt))}
+            {invoiceLabel ? (
+              <>Tracking for{" "}
+                <Link
+                  href={`/dashboard/invoices/${running.invoice!.id}`}
+                  className="text-primary hover:underline"
+                >
+                  {invoiceLabel}
+                </Link>
+              </>
+            ) : (
+              <>Started{" "}
+                {new Intl.DateTimeFormat("en-US", {
+                  hour: "numeric",
+                  minute: "2-digit",
+                }).format(new Date(running.startedAt))}
+              </>
+            )}
           </p>
         </div>
 
@@ -89,20 +105,15 @@ export function ActiveTimerWidget() {
           {formatElapsed(elapsed)}
         </span>
 
-        <div className="flex gap-2">
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => clockOut.mutate({})}
-            disabled={clockOut.isPending}
-          >
-            <Square className="mr-1.5 h-3.5 w-3.5" />
-            {clockOut.isPending ? "Stopping…" : "Stop"}
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/dashboard/time-clock">Details</Link>
-          </Button>
-        </div>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => clockOut.mutate({})}
+          disabled={clockOut.isPending}
+        >
+          <Square className="mr-1.5 h-3.5 w-3.5" />
+          {clockOut.isPending ? "Stopping…" : "Stop"}
+        </Button>
       </CardContent>
     </Card>
   );

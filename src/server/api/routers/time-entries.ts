@@ -24,28 +24,15 @@ function computeHours(startedAt: Date, endedAt: Date): number {
   return Math.max(0.25, Math.ceil(seconds / 900) * 0.25);
 }
 
-async function addEntryToLatestInvoice(
+async function addEntryToInvoice(
   database: Db,
-  userId: string,
-  clientId: string,
+  invoice: { id: string; invoiceNumber: string; invoicePrefix: string | null; taxRate: number; items: { amount: number; position: number }[] },
   entryId: string,
   description: string,
   hours: number,
   rate: number,
   date: Date,
-): Promise<{ id: string; invoiceNumber: string; invoicePrefix: string } | null> {
-  const invoice = await database.query.invoices.findFirst({
-    where: and(
-      eq(invoices.clientId, clientId),
-      eq(invoices.createdById, userId),
-      or(eq(invoices.status, "draft"), eq(invoices.status, "sent")),
-    ),
-    with: { items: true },
-    orderBy: [desc(invoices.createdAt)],
-  });
-
-  if (!invoice) return null;
-
+): Promise<{ id: string; invoiceNumber: string; invoicePrefix: string }> {
   const amount = hours * rate;
   const maxPosition = invoice.items.reduce((m, item) => Math.max(m, item.position), -1);
 
@@ -77,6 +64,53 @@ async function addEntryToLatestInvoice(
     invoiceNumber: invoice.invoiceNumber,
     invoicePrefix: invoice.invoicePrefix ?? "#",
   };
+}
+
+async function addEntryToLatestInvoice(
+  database: Db,
+  userId: string,
+  clientId: string,
+  entryId: string,
+  description: string,
+  hours: number,
+  rate: number,
+  date: Date,
+): Promise<{ id: string; invoiceNumber: string; invoicePrefix: string } | null> {
+  const invoice = await database.query.invoices.findFirst({
+    where: and(
+      eq(invoices.clientId, clientId),
+      eq(invoices.createdById, userId),
+      or(eq(invoices.status, "draft"), eq(invoices.status, "sent")),
+    ),
+    with: { items: true },
+    orderBy: [desc(invoices.createdAt)],
+  });
+
+  if (!invoice) return null;
+  return addEntryToInvoice(database, invoice, entryId, description, hours, rate, date);
+}
+
+async function addEntryToSpecificInvoice(
+  database: Db,
+  userId: string,
+  invoiceId: string,
+  entryId: string,
+  description: string,
+  hours: number,
+  rate: number,
+  date: Date,
+): Promise<{ id: string; invoiceNumber: string; invoicePrefix: string } | null> {
+  const invoice = await database.query.invoices.findFirst({
+    where: and(
+      eq(invoices.id, invoiceId),
+      eq(invoices.createdById, userId),
+      or(eq(invoices.status, "draft"), eq(invoices.status, "sent")),
+    ),
+    with: { items: true },
+  });
+
+  if (!invoice) return null;
+  return addEntryToInvoice(database, invoice, entryId, description, hours, rate, date);
 }
 
 export const timeEntriesRouter = createTRPCRouter({
@@ -123,7 +157,10 @@ export const timeEntriesRouter = createTRPCRouter({
         eq(timeEntries.createdById, ctx.session.user.id),
         isNull(timeEntries.endedAt),
       ),
-      with: { client: true },
+      with: {
+        client: true,
+        invoice: { columns: { id: true, invoiceNumber: true, invoicePrefix: true } },
+      },
     });
   }),
 
@@ -132,6 +169,7 @@ export const timeEntriesRouter = createTRPCRouter({
       z.object({
         description: z.string().max(500).default(""),
         clientId: z.string().optional().or(z.literal("")),
+        invoiceId: z.string().optional(),
         rate: z.number().min(0).optional(),
         startedAt: z.date().optional(),
       }),
@@ -158,6 +196,14 @@ export const timeEntriesRouter = createTRPCRouter({
         if (!client) throw new TRPCError({ code: "FORBIDDEN", message: "Client not found" });
       }
 
+      const invoiceId = input.invoiceId ?? null;
+      if (invoiceId) {
+        const invoice = await ctx.db.query.invoices.findFirst({
+          where: and(eq(invoices.id, invoiceId), eq(invoices.createdById, ctx.session.user.id)),
+        });
+        if (!invoice) throw new TRPCError({ code: "FORBIDDEN", message: "Invoice not found" });
+      }
+
       const startedAt = input.startedAt ?? new Date();
       if (startedAt > new Date()) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "startedAt cannot be in the future" });
@@ -168,6 +214,7 @@ export const timeEntriesRouter = createTRPCRouter({
         .values({
           description: input.description,
           clientId,
+          invoiceId,
           startedAt,
           rate: input.rate ?? null,
           createdById: ctx.session.user.id,
@@ -212,17 +259,30 @@ export const timeEntriesRouter = createTRPCRouter({
       if (!updated) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Clock out failed" });
 
       let linkedInvoice: { id: string; invoiceNumber: string; invoicePrefix: string } | null = null;
-      if (entry.clientId && hours > 0) {
-        linkedInvoice = await addEntryToLatestInvoice(
-          ctx.db,
-          ctx.session.user.id,
-          entry.clientId,
-          updated.id,
-          description,
-          hours,
-          entry.rate ?? 0,
-          endedAt,
-        );
+      if (hours > 0) {
+        if (entry.invoiceId) {
+          linkedInvoice = await addEntryToSpecificInvoice(
+            ctx.db,
+            ctx.session.user.id,
+            entry.invoiceId,
+            updated.id,
+            description,
+            hours,
+            entry.rate ?? 0,
+            endedAt,
+          );
+        } else if (entry.clientId) {
+          linkedInvoice = await addEntryToLatestInvoice(
+            ctx.db,
+            ctx.session.user.id,
+            entry.clientId,
+            updated.id,
+            description,
+            hours,
+            entry.rate ?? 0,
+            endedAt,
+          );
+        }
       }
 
       return { entry: updated, invoice: linkedInvoice };

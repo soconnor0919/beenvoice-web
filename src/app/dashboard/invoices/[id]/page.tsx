@@ -61,6 +61,7 @@ import type { StoredInvoiceStatus } from "~/types/invoice";
 import { InvoiceDetailsSkeleton } from "./_components/invoice-details-skeleton";
 import { PDFDownloadButton } from "./_components/pdf-download-button";
 import { EnhancedSendInvoiceButton } from "~/components/forms/enhanced-send-invoice-button";
+import { InvoiceTimerCard } from "./_components/invoice-timer-card";
 
 const PAYMENT_METHODS = [
   { value: "cash", label: "Cash" },
@@ -521,6 +522,14 @@ function InvoiceViewContent({ invoiceId }: { invoiceId: string }) {
 
         {/* Right Column - Actions */}
         <div className="space-y-6">
+          {effectiveStatus !== "paid" && (
+            <InvoiceTimerCard
+              invoiceId={invoiceId}
+              clientId={invoice.clientId}
+              defaultRate={invoice.client?.defaultHourlyRate}
+            />
+          )}
+
           <Card className="lg:sticky lg:top-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
