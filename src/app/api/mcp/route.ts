@@ -367,10 +367,20 @@ function textResult(data: unknown): ToolResult {
 
 const tools = {
   invoices_list: defineTool({
-    description: "List invoices for the authenticated beenvoice user.",
-    inputSchema: jsonSchemas.empty,
-    schema: z.object({}).optional().default({}),
-    handler: async (_input, caller) => caller.invoices.getAll(),
+    description: "List invoices for the authenticated user. Optionally filter by status ('draft', 'sent', or 'paid') and/or clientId.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["draft", "sent", "paid"], description: "Filter by invoice status" },
+        clientId: { type: "string", description: "Filter by client ID" },
+      },
+      additionalProperties: false,
+    },
+    schema: z.object({
+      status: z.enum(["draft", "sent", "paid"]).optional(),
+      clientId: z.string().optional(),
+    }).optional().default({}),
+    handler: async (input, caller) => caller.invoices.getAll(input ?? {}),
   }),
   invoices_get: defineTool({
     description: "Get one invoice by ID.",
@@ -858,6 +868,123 @@ const tools = {
     inputSchema: jsonSchemas.bulkIds,
     schema: z.object({ ids: z.array(z.string()).min(1) }),
     handler: async (input, caller) => caller.invoices.bulkDelete(input),
+  }),
+
+  // ── Invoice Templates ────────────────────────────────────────────────────────
+  templates_list: defineTool({
+    description: "List all saved invoice templates (notes and terms). Use these to populate invoice notes/terms fields.",
+    inputSchema: jsonSchemas.empty,
+    schema: z.object({}).optional().default({}),
+    handler: async (_input, caller) => caller.invoiceTemplates.getAll(),
+  }),
+  templates_list_by_type: defineTool({
+    description: "List invoice templates filtered by type: 'notes' for invoice notes, 'terms' for payment terms.",
+    inputSchema: {
+      type: "object",
+      properties: { type: { type: "string", enum: ["notes", "terms"] } },
+      required: ["type"],
+      additionalProperties: false,
+    },
+    schema: z.object({ type: z.enum(["notes", "terms"]) }),
+    handler: async (input, caller) => caller.invoiceTemplates.getByType(input),
+  }),
+  templates_create: defineTool({
+    description: "Create an invoice template. Set isDefault=true to automatically apply this template to new invoices of this type.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", minLength: 1, maxLength: 255 },
+        type: { type: "string", enum: ["notes", "terms"] },
+        content: { type: "string", minLength: 1 },
+        isDefault: { type: "boolean" },
+      },
+      required: ["name", "content"],
+      additionalProperties: false,
+    },
+    schema: z.object({
+      name: z.string().min(1).max(255),
+      type: z.enum(["notes", "terms"]).default("notes"),
+      content: z.string().min(1),
+      isDefault: z.boolean().default(false),
+    }),
+    handler: async (input, caller) => caller.invoiceTemplates.create(input),
+  }),
+  templates_update: defineTool({
+    description: "Update an existing invoice template by ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        name: { type: "string", minLength: 1, maxLength: 255 },
+        type: { type: "string", enum: ["notes", "terms"] },
+        content: { type: "string", minLength: 1 },
+        isDefault: { type: "boolean" },
+      },
+      required: ["id"],
+      additionalProperties: false,
+    },
+    schema: z.object({
+      id: z.string(),
+      name: z.string().min(1).max(255).optional(),
+      type: z.enum(["notes", "terms"]).optional(),
+      content: z.string().min(1).optional(),
+      isDefault: z.boolean().optional(),
+    }),
+    handler: async (input, caller) => caller.invoiceTemplates.update(input),
+  }),
+  templates_delete: defineTool({
+    description: "Delete an invoice template by ID.",
+    inputSchema: jsonSchemas.id,
+    schema: z.object({ id: z.string() }),
+    handler: async (input, caller) => caller.invoiceTemplates.delete(input),
+  }),
+
+  // ── Business email config ─────────────────────────────────────────────────────
+  businesses_get_email_config: defineTool({
+    description: "Get the email configuration for a business (Resend domain, from-name, and whether an API key is set). The API key itself is never returned.",
+    inputSchema: jsonSchemas.id,
+    schema: z.object({ id: z.string() }),
+    handler: async (input, caller) => caller.businesses.getEmailConfig(input),
+  }),
+  businesses_update_email_config: defineTool({
+    description: "Configure custom email sending for a business via Resend. Set resendApiKey and resendDomain to send invoices from your own domain. Set emailFromName for the sender display name.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        resendApiKey: { type: "string", description: "Resend API key (re_...)" },
+        resendDomain: { type: "string", description: "Verified Resend sending domain (e.g. mail.example.com)" },
+        emailFromName: { type: "string", description: "Display name for the From field" },
+      },
+      required: ["id"],
+      additionalProperties: false,
+    },
+    schema: z.object({
+      id: z.string(),
+      resendApiKey: z.string().optional().or(z.literal("")),
+      resendDomain: z.string().optional().or(z.literal("")),
+      emailFromName: z.string().optional().or(z.literal("")),
+    }),
+    handler: async (input, caller) => caller.businesses.updateEmailConfig(input),
+  }),
+
+  // ── User profile ──────────────────────────────────────────────────────────────
+  profile_get: defineTool({
+    description: "Get the authenticated user's profile: id, name, email, and role.",
+    inputSchema: jsonSchemas.empty,
+    schema: z.object({}).optional().default({}),
+    handler: async (_input, caller) => caller.settings.getProfile(),
+  }),
+  profile_update: defineTool({
+    description: "Update the authenticated user's display name.",
+    inputSchema: {
+      type: "object",
+      properties: { name: { type: "string", minLength: 1 } },
+      required: ["name"],
+      additionalProperties: false,
+    },
+    schema: z.object({ name: z.string().min(1) }),
+    handler: async (input, caller) => caller.settings.updateProfile(input),
   }),
 } satisfies Record<string, ToolDefinition>;
 

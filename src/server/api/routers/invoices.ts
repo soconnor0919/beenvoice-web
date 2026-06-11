@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import {
   invoices,
@@ -114,25 +114,36 @@ const calculateInvoiceTotal = (
 };
 
 export const invoicesRouter = createTRPCRouter({
-  getAll: protectedProcedure.query(async ({ ctx }) => {
-    try {
-      return await ctx.db.query.invoices.findMany({
-        where: eq(invoices.createdById, ctx.session.user.id),
-        with: {
-          business: true,
-          client: true,
-          items: true,
-        },
-        orderBy: (invoices, { desc }) => [desc(invoices.issueDate)],
-      });
-    } catch (error) {
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Failed to fetch invoices",
-        cause: error,
-      });
-    }
-  }),
+  getAll: protectedProcedure
+    .input(
+      z.object({
+        status: z.enum(["draft", "sent", "paid"]).optional(),
+        clientId: z.string().optional(),
+      }).optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      try {
+        const conditions = [eq(invoices.createdById, ctx.session.user.id)];
+        if (input?.status) conditions.push(eq(invoices.status, input.status));
+        if (input?.clientId) conditions.push(eq(invoices.clientId, input.clientId));
+
+        return await ctx.db.query.invoices.findMany({
+          where: and(...conditions),
+          with: {
+            business: true,
+            client: true,
+            items: true,
+          },
+          orderBy: (invoices, { desc }) => [desc(invoices.issueDate)],
+        });
+      } catch (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to fetch invoices",
+          cause: error,
+        });
+      }
+    }),
 
   getLineItemHistory: protectedProcedure.query(async ({ ctx }) => {
     const userInvoices = await ctx.db
