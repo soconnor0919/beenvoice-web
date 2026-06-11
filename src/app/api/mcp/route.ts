@@ -409,12 +409,13 @@ const tools = {
   }),
   time_clock_in: defineTool({
     description:
-      "Start a time clock entry for the authenticated user. Fails if a timer is already running. Use startedAt to backdate the start time (e.g. if you forgot to clock in earlier). Cannot be in the future.",
+      "Start a time clock entry for the authenticated user. Fails if a timer is already running. Use invoiceId to link directly to a specific invoice (the time will be added to that invoice on clock-out). Use startedAt to backdate the start time (e.g. if you forgot to clock in earlier). Cannot be in the future.",
     inputSchema: {
       type: "object",
       properties: {
         description: { type: "string", maxLength: 500 },
         clientId: { type: "string" },
+        invoiceId: { type: "string", description: "Link this timer to a specific invoice. On clock-out, time is added directly to this invoice." },
         rate: { type: "number", minimum: 0 },
         startedAt: { type: "string", format: "date-time", description: "Optional backdated start time (ISO 8601). Defaults to now." },
       },
@@ -423,6 +424,7 @@ const tools = {
     schema: z.object({
       description: z.string().max(500).default(""),
       clientId: z.string().optional().or(z.literal("")),
+      invoiceId: z.string().optional(),
       rate: z.number().min(0).optional(),
       startedAt: z.string().optional(),
     }),
@@ -434,7 +436,7 @@ const tools = {
   }),
   time_clock_out: defineTool({
     description:
-      "Stop the currently running timer for the authenticated user. Returns the completed time entry with computed hours. If the entry has a client, a line item is automatically added to their latest open invoice and the invoice is returned in the 'invoice' field.",
+      "Stop the currently running timer for the authenticated user. Returns the completed time entry with computed hours. If the entry was linked to a specific invoice (via invoiceId at clock-in), the time is added directly to that invoice. Otherwise, if the entry has a client, a line item is automatically added to their latest open invoice. The invoice is returned in the 'invoice' field.",
     inputSchema: {
       type: "object",
       properties: {
