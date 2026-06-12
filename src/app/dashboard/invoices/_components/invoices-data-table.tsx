@@ -320,6 +320,7 @@ export function InvoicesDataTable({ invoices }: InvoicesDataTableProps) {
         data={invoices}
         searchKey="invoiceNumber"
         searchPlaceholder="Search invoices..."
+        initialSorting={[{ id: "issueDate", desc: true }]}
         filterableColumns={filterableColumns}
         onRowClick={(invoice) =>
           router.push(`/dashboard/invoices/${invoice.id}`)

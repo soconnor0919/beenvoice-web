@@ -132,9 +132,19 @@ export const invoicesRouter = createTRPCRouter({
           with: {
             business: true,
             client: true,
-            items: true,
+            items: {
+              orderBy: (items, { asc }) => [
+                asc(items.date),
+                asc(items.position),
+                asc(items.createdAt),
+              ],
+            },
           },
-          orderBy: (invoices, { desc }) => [desc(invoices.issueDate)],
+          orderBy: (invoices, { desc }) => [
+            desc(invoices.issueDate),
+            desc(invoices.dueDate),
+            desc(invoices.invoiceNumber),
+          ],
         });
       } catch (error) {
         throw new TRPCError({
@@ -188,10 +198,18 @@ export const invoicesRouter = createTRPCRouter({
           business: true,
           client: true,
           items: {
-            orderBy: (items, { asc }) => [asc(items.position)],
+            orderBy: (items, { asc }) => [
+              asc(items.date),
+              asc(items.position),
+              asc(items.createdAt),
+            ],
           },
         },
-        orderBy: (invoices, { desc }) => [desc(invoices.createdAt)],
+        orderBy: (invoices, { desc }) => [
+          desc(invoices.issueDate),
+          desc(invoices.dueDate),
+          desc(invoices.invoiceNumber),
+        ],
       });
 
       // Return null if no draft invoice exists
@@ -219,7 +237,11 @@ export const invoicesRouter = createTRPCRouter({
             business: true,
             client: true,
             items: {
-              orderBy: (items, { asc }) => [asc(items.position)],
+              orderBy: (items, { asc }) => [
+                asc(items.date),
+                asc(items.position),
+                asc(items.createdAt),
+              ],
             },
           },
         });
@@ -684,7 +706,17 @@ export const invoicesRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const invoice = await ctx.db.query.invoices.findFirst({
         where: eq(invoices.publicToken, input.token),
-        with: { client: true, business: true, items: { orderBy: (i, { asc }) => [asc(i.position)] } },
+        with: {
+          client: true,
+          business: true,
+          items: {
+            orderBy: (i, { asc }) => [
+              asc(i.date),
+              asc(i.position),
+              asc(i.createdAt),
+            ],
+          },
+        },
       });
       if (!invoice) throw new TRPCError({ code: "NOT_FOUND" });
       if (invoice.publicTokenExpiresAt && new Date(invoice.publicTokenExpiresAt) < new Date()) {

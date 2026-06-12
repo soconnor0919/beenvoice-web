@@ -105,7 +105,11 @@ export const dashboardRouter = createTRPCRouter({
     // Recent Activity
     const recentInvoices = await ctx.db.query.invoices.findMany({
       where: eq(invoices.createdById, userId),
-      orderBy: [desc(invoices.issueDate)],
+      orderBy: [
+        desc(invoices.issueDate),
+        desc(invoices.dueDate),
+        desc(invoices.invoiceNumber),
+      ],
       limit: 5,
       with: {
         client: {

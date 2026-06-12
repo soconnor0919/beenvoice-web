@@ -74,7 +74,11 @@ export const clientsRouter = createTRPCRouter({
           where: eq(clients.id, input.id),
           with: {
             invoices: {
-              orderBy: (invoices, { desc }) => [desc(invoices.createdAt)],
+              orderBy: (invoices, { desc }) => [
+                desc(invoices.issueDate),
+                desc(invoices.dueDate),
+                desc(invoices.invoiceNumber),
+              ],
             },
           },
         });

@@ -83,7 +83,11 @@ async function addEntryToLatestInvoice(
       or(eq(invoices.status, "draft"), eq(invoices.status, "sent")),
     ),
     with: { items: true },
-    orderBy: [desc(invoices.createdAt)],
+    orderBy: [
+      desc(invoices.issueDate),
+      desc(invoices.dueDate),
+      desc(invoices.invoiceNumber),
+    ],
   });
 
   if (!invoice) return null;

@@ -541,9 +541,18 @@ export const settingsRouter = createTRPCRouter({
             amount: true,
             position: true,
           },
-          orderBy: (items, { asc }) => [asc(items.position)],
+          orderBy: (items, { asc }) => [
+            asc(items.date),
+            asc(items.position),
+            asc(items.createdAt),
+          ],
         },
       },
+      orderBy: (invoices, { desc }) => [
+        desc(invoices.issueDate),
+        desc(invoices.dueDate),
+        desc(invoices.invoiceNumber),
+      ],
     });
 
     // Format the data for export

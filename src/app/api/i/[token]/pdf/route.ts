@@ -17,7 +17,13 @@ export async function GET(
     with: {
       client: true,
       business: true,
-      items: { orderBy: (i, { asc }) => [asc(i.position)] },
+      items: {
+        orderBy: (i, { asc }) => [
+          asc(i.date),
+          asc(i.position),
+          asc(i.createdAt),
+        ],
+      },
     },
   });
 
