@@ -1,3 +1,4 @@
+import { expo } from "@better-auth/expo";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
@@ -31,6 +32,8 @@ export const auth = betterAuth({
   }),
   trustedOrigins: [
     "https://beenvoice.soconnor.dev",
+    "beenvoice://",
+    "exp://",
     ...(authentikOrigin ? [authentikOrigin] : []),
     ...(process.env.AUTHENTIK_ORIGIN ? [process.env.AUTHENTIK_ORIGIN] : []),
   ],
@@ -55,6 +58,7 @@ export const auth = betterAuth({
     },
   },
   plugins: [
+    expo(),
     nextCookies(),
     ...(authentikEnabled
       ? [
