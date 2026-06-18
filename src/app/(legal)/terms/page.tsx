@@ -11,7 +11,10 @@ export const metadata: Metadata = {
 
 export default function TermsOfServicePage() {
   return (
-    <LegalPageShell title="Terms of Service">
+    <LegalPageShell
+      title="Terms of Service"
+      description={`The rules for using ${brand.name} on the web and mobile apps.`}
+    >
       <TermsOfServiceContent />
     </LegalPageShell>
   );

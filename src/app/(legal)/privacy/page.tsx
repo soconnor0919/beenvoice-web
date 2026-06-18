@@ -11,7 +11,10 @@ export const metadata: Metadata = {
 
 export default function PrivacyPolicyPage() {
   return (
-    <LegalPageShell title="Privacy Policy">
+    <LegalPageShell
+      title="Privacy Policy"
+      description={`How ${brand.name} collects, uses, and protects your data across the web and mobile apps.`}
+    >
       <PrivacyPolicyContent />
     </LegalPageShell>
   );
