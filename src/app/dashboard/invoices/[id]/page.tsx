@@ -523,11 +523,7 @@ function InvoiceViewContent({ invoiceId }: { invoiceId: string }) {
         {/* Right Column - Actions */}
         <div className="space-y-6">
           {effectiveStatus !== "paid" && (
-            <InvoiceTimerCard
-              invoiceId={invoiceId}
-              clientId={invoice.clientId}
-              defaultRate={invoice.client?.defaultHourlyRate}
-            />
+            <InvoiceTimerCard invoiceId={invoiceId} clientId={invoice.clientId} />
           )}
 
           <Card className="lg:sticky lg:top-6">

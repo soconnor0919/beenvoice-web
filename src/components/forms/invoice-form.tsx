@@ -806,6 +806,7 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
                   onUpdateItem={updateItem}
                   onAddItemWithValues={addItemWithValues}
                   invoiceId={invoiceId && invoiceId !== "new" ? invoiceId : undefined}
+                  clientId={formData.clientId || undefined}
                   defaultRate={formData.items[0]?.rate}
                 />
               </CardContent>

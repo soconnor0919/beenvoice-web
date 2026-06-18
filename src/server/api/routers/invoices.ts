@@ -155,6 +155,38 @@ export const invoicesRouter = createTRPCRouter({
       }
     }),
 
+  /** Draft and sent invoices available for time-clock billing. */
+  getBillable: protectedProcedure
+    .input(z.object({ clientId: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const conditions = [
+        eq(invoices.createdById, ctx.session.user.id),
+        inArray(invoices.status, ["draft", "sent"]),
+      ];
+      if (input?.clientId) conditions.push(eq(invoices.clientId, input.clientId));
+
+      return ctx.db.query.invoices.findMany({
+        where: and(...conditions),
+        columns: {
+          id: true,
+          invoiceNumber: true,
+          invoicePrefix: true,
+          status: true,
+          clientId: true,
+          issueDate: true,
+          totalAmount: true,
+        },
+        with: {
+          client: { columns: { id: true, name: true } },
+        },
+        orderBy: (invoices, { desc }) => [
+          desc(invoices.issueDate),
+          desc(invoices.dueDate),
+          desc(invoices.invoiceNumber),
+        ],
+      });
+    }),
+
   getLineItemHistory: protectedProcedure.query(async ({ ctx }) => {
     const userInvoices = await ctx.db
       .select({ id: invoices.id })

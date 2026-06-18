@@ -1,19 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api } from "~/trpc/react";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
-import { Square } from "lucide-react";
+import { Square, Clock } from "lucide-react";
 import { toast } from "sonner";
-import Link from "next/link";
-
-function formatElapsed(seconds: number) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
-}
+import { describeClockOutOutcome, formatElapsedSeconds } from "~/lib/time-clock";
 
 export function ActiveTimerWidget() {
   const utils = api.useUtils();
@@ -39,19 +33,32 @@ export function ActiveTimerWidget() {
 
   const clockOut = api.timeEntries.clockOut.useMutation({
     onSuccess: (data) => {
-      if (data.invoice) {
-        const label = `${data.invoice.invoicePrefix}${data.invoice.invoiceNumber}`;
+      const message = describeClockOutOutcome({
+        outcome: data.outcome,
+        hours: data.hours,
+        rate: data.rate,
+        invoice: data.invoice,
+      });
+
+      if (data.outcome === "linked_to_invoice" && data.invoice) {
         toast.success("Timer stopped", {
-          description: `Added to invoice ${label}`,
+          description: message,
           action: {
-            label: "View Invoice",
-            onClick: () => window.location.assign(`/dashboard/invoices/${data.invoice!.id}`),
+            label: "View invoice",
+            onClick: () =>
+              window.location.assign(`/dashboard/invoices/${data.invoice!.id}`),
           },
         });
+      } else if (data.outcome === "saved_no_invoice" || data.outcome === "saved_no_client") {
+        toast.warning("Time saved", { description: message });
       } else {
-        toast.success("Timer stopped");
+        toast.success(message);
       }
+
       void utils.timeEntries.getRunning.invalidate();
+      void utils.timeEntries.getAll.invalidate();
+      void utils.invoices.getAll.invalidate();
+      void utils.dashboard.getStats.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -65,7 +72,6 @@ export function ActiveTimerWidget() {
   return (
     <Card className="border-primary/30 bg-primary/5">
       <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-        {/* Pulse indicator */}
         <span className="relative flex h-3 w-3 flex-shrink-0">
           <span className="bg-primary absolute inline-flex h-full w-full animate-ping rounded-full opacity-75" />
           <span className="bg-primary relative inline-flex h-3 w-3 rounded-full" />
@@ -82,7 +88,8 @@ export function ActiveTimerWidget() {
           </p>
           <p className="text-muted-foreground text-xs">
             {invoiceLabel ? (
-              <>Tracking for{" "}
+              <>
+                Billing to{" "}
                 <Link
                   href={`/dashboard/invoices/${running.invoice!.id}`}
                   className="text-primary hover:underline"
@@ -91,29 +98,36 @@ export function ActiveTimerWidget() {
                 </Link>
               </>
             ) : (
-              <>Started{" "}
-                {new Intl.DateTimeFormat("en-US", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                }).format(new Date(running.startedAt))}
-              </>
+              <>No invoice selected — open time clock to assign</>
             )}
+            {" · "}
+            <Link href="/dashboard/time-clock" className="text-primary hover:underline">
+              Time clock
+            </Link>
           </p>
         </div>
 
         <span className="text-primary font-mono text-2xl font-bold tabular-nums">
-          {formatElapsed(elapsed)}
+          {formatElapsedSeconds(elapsed)}
         </span>
 
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => clockOut.mutate({})}
-          disabled={clockOut.isPending}
-        >
-          <Square className="mr-1.5 h-3.5 w-3.5" />
-          {clockOut.isPending ? "Stopping…" : "Stop"}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/time-clock">
+              <Clock className="mr-1.5 h-3.5 w-3.5" />
+              Open
+            </Link>
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => clockOut.mutate({})}
+            disabled={clockOut.isPending}
+          >
+            <Square className="mr-1.5 h-3.5 w-3.5" />
+            {clockOut.isPending ? "Stopping…" : "Stop"}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

@@ -490,7 +490,6 @@ function CardSkeleton() {
 }
 
 import { DashboardPageHeader } from "~/components/layout/page-header";
-import { ActiveTimerWidget } from "~/app/dashboard/_components/active-timer-widget";
 
 // ... imports
 
@@ -510,10 +509,6 @@ export default async function DashboardPage() {
         title={`Welcome back, ${firstName}!`}
         description="Here's what's happening with your business today"
       />
-
-      <HydrateClient>
-        <ActiveTimerWidget />
-      </HydrateClient>
 
       <HydrateClient>
         <Suspense fallback={<StatsSkeleton />}>

@@ -12,6 +12,7 @@ import { Logo } from "~/components/branding/logo";
 import { Button } from "~/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "~/components/ui/sheet";
 import { useAppearance } from "~/components/providers/appearance-provider";
+import { ActiveTimerWidget } from "~/app/dashboard/_components/active-timer-widget";
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { isCollapsed } = useSidebar();
@@ -68,9 +69,11 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
         )}
       >
         <div className="dashboard-content-shell p-4 pt-16 md:pt-4">
-          {/* Mobile header spacer is handled by pt-16 on mobile */}
           <div className="mb-4 md:hidden">
             {/* Mobile Breadcrumbs could go here or be part of the page */}
+          </div>
+          <div className="mb-4">
+            <ActiveTimerWidget />
           </div>
           {children}
         </div>

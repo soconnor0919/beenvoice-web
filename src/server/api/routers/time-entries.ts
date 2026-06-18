@@ -4,6 +4,10 @@ import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { timeEntries, clients, invoices, invoiceItems } from "~/server/db/schema";
 import { TRPCError } from "@trpc/server";
 import type { db } from "~/server/db";
+import {
+  computeTrackedHours,
+  type ClockOutOutcome,
+} from "~/lib/time-clock";
 
 type Db = typeof db;
 
@@ -19,9 +23,25 @@ const createSchema = z.object({
 
 const updateSchema = createSchema.partial().extend({ id: z.string() });
 
+async function resolveHourlyRate(
+  database: Db,
+  userId: string,
+  clientId: string | null,
+  explicitRate?: number | null,
+): Promise<number | null> {
+  if (explicitRate != null && explicitRate > 0) return explicitRate;
+  if (!clientId) return explicitRate ?? null;
+
+  const client = await database.query.clients.findFirst({
+    where: and(eq(clients.id, clientId), eq(clients.createdById, userId)),
+    columns: { defaultHourlyRate: true },
+  });
+
+  return client?.defaultHourlyRate ?? explicitRate ?? null;
+}
+
 function computeHours(startedAt: Date, endedAt: Date): number {
-  const seconds = Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000);
-  return Math.max(0.25, Math.ceil(seconds / 900) * 0.25);
+  return computeTrackedHours(startedAt, endedAt);
 }
 
 async function addEntryToInvoice(
@@ -156,7 +176,7 @@ export const timeEntriesRouter = createTRPCRouter({
     }),
 
   getRunning: protectedProcedure.query(async ({ ctx }) => {
-    return ctx.db.query.timeEntries.findFirst({
+    const entry = await ctx.db.query.timeEntries.findFirst({
       where: and(
         eq(timeEntries.createdById, ctx.session.user.id),
         isNull(timeEntries.endedAt),
@@ -166,6 +186,7 @@ export const timeEntriesRouter = createTRPCRouter({
         invoice: { columns: { id: true, invoiceNumber: true, invoicePrefix: true } },
       },
     });
+    return entry ?? null;
   }),
 
   clockIn: protectedProcedure
@@ -193,19 +214,40 @@ export const timeEntriesRouter = createTRPCRouter({
       }
 
       const clientId = input.clientId?.trim() ?? null;
+      let clientRecord: { defaultHourlyRate: number | null } | null = null;
       if (clientId) {
-        const client = await ctx.db.query.clients.findFirst({
+        const found = await ctx.db.query.clients.findFirst({
           where: and(eq(clients.id, clientId), eq(clients.createdById, ctx.session.user.id)),
+          columns: { defaultHourlyRate: true },
         });
-        if (!client) throw new TRPCError({ code: "FORBIDDEN", message: "Client not found" });
+        if (!found) throw new TRPCError({ code: "FORBIDDEN", message: "Client not found" });
+        clientRecord = found;
       }
 
       const invoiceId = input.invoiceId ?? null;
+      let resolvedClientId = clientId;
       if (invoiceId) {
         const invoice = await ctx.db.query.invoices.findFirst({
-          where: and(eq(invoices.id, invoiceId), eq(invoices.createdById, ctx.session.user.id)),
+          where: and(
+            eq(invoices.id, invoiceId),
+            eq(invoices.createdById, ctx.session.user.id),
+            or(eq(invoices.status, "draft"), eq(invoices.status, "sent")),
+          ),
+          columns: { id: true, clientId: true },
         });
-        if (!invoice) throw new TRPCError({ code: "FORBIDDEN", message: "Invoice not found" });
+        if (!invoice) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Invoice not found or not open for time tracking",
+          });
+        }
+        if (resolvedClientId && invoice.clientId !== resolvedClientId) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Selected invoice does not belong to this client",
+          });
+        }
+        resolvedClientId = resolvedClientId ?? invoice.clientId;
       }
 
       const startedAt = input.startedAt ?? new Date();
@@ -213,19 +255,140 @@ export const timeEntriesRouter = createTRPCRouter({
         throw new TRPCError({ code: "BAD_REQUEST", message: "startedAt cannot be in the future" });
       }
 
+      if (!clientRecord && resolvedClientId) {
+        const found = await ctx.db.query.clients.findFirst({
+          where: and(
+            eq(clients.id, resolvedClientId),
+            eq(clients.createdById, ctx.session.user.id),
+          ),
+          columns: { defaultHourlyRate: true },
+        });
+        clientRecord = found ?? null;
+      }
+
+      const rate = await resolveHourlyRate(
+        ctx.db,
+        ctx.session.user.id,
+        resolvedClientId,
+        input.rate ?? clientRecord?.defaultHourlyRate,
+      );
+
       const [entry] = await ctx.db
         .insert(timeEntries)
         .values({
           description: input.description,
-          clientId,
+          clientId: resolvedClientId,
           invoiceId,
           startedAt,
-          rate: input.rate ?? null,
+          rate,
           createdById: ctx.session.user.id,
         })
         .returning();
 
       return entry;
+    }),
+
+  updateRunning: protectedProcedure
+    .input(
+      z.object({
+        description: z.string().max(500).optional(),
+        clientId: z.string().optional().or(z.literal("")),
+        invoiceId: z.string().optional().or(z.literal("")),
+        rate: z.number().min(0).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const entry = await ctx.db.query.timeEntries.findFirst({
+        where: and(
+          eq(timeEntries.createdById, ctx.session.user.id),
+          isNull(timeEntries.endedAt),
+        ),
+      });
+
+      if (!entry) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No running timer found" });
+      }
+
+      const updates: {
+        description?: string;
+        clientId?: string | null;
+        invoiceId?: string | null;
+        rate?: number | null;
+        updatedAt: Date;
+      } = { updatedAt: new Date() };
+
+      if (input.description !== undefined) {
+        updates.description = input.description;
+      }
+
+      let resolvedClientId = entry.clientId;
+
+      if (input.clientId !== undefined) {
+        const clientId = input.clientId.trim() || null;
+        if (clientId) {
+          const found = await ctx.db.query.clients.findFirst({
+            where: and(eq(clients.id, clientId), eq(clients.createdById, ctx.session.user.id)),
+          });
+          if (!found) throw new TRPCError({ code: "FORBIDDEN", message: "Client not found" });
+        }
+        resolvedClientId = clientId;
+        updates.clientId = clientId;
+        if (input.invoiceId === undefined) {
+          updates.invoiceId = null;
+        }
+      }
+
+      if (input.invoiceId !== undefined) {
+        const invoiceId = input.invoiceId.trim() || null;
+        if (invoiceId) {
+          const invoice = await ctx.db.query.invoices.findFirst({
+            where: and(
+              eq(invoices.id, invoiceId),
+              eq(invoices.createdById, ctx.session.user.id),
+              or(eq(invoices.status, "draft"), eq(invoices.status, "sent")),
+            ),
+            columns: { id: true, clientId: true },
+          });
+          if (!invoice) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "Invoice not found or not open for time tracking",
+            });
+          }
+          if (resolvedClientId && invoice.clientId !== resolvedClientId) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Selected invoice does not belong to this client",
+            });
+          }
+          resolvedClientId = resolvedClientId ?? invoice.clientId;
+          updates.clientId = resolvedClientId;
+        }
+        updates.invoiceId = invoiceId;
+      }
+
+      if (input.rate !== undefined) {
+        updates.rate = input.rate;
+      } else if (input.clientId !== undefined && resolvedClientId) {
+        updates.rate = await resolveHourlyRate(
+          ctx.db,
+          ctx.session.user.id,
+          resolvedClientId,
+          entry.rate,
+        );
+      }
+
+      const [updated] = await ctx.db
+        .update(timeEntries)
+        .set(updates)
+        .where(eq(timeEntries.id, entry.id))
+        .returning();
+
+      if (!updated) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Update failed" });
+      }
+
+      return updated;
     }),
 
   clockOut: protectedProcedure
@@ -253,6 +416,7 @@ export const timeEntriesRouter = createTRPCRouter({
       const endedAt = new Date();
       const hours = computeHours(entry.startedAt, endedAt);
       const description = input?.description?.trim() ?? entry.description;
+      const rate = entry.rate ?? 0;
 
       const [updated] = await ctx.db
         .update(timeEntries)
@@ -263,6 +427,8 @@ export const timeEntriesRouter = createTRPCRouter({
       if (!updated) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Clock out failed" });
 
       let linkedInvoice: { id: string; invoiceNumber: string; invoicePrefix: string } | null = null;
+      let outcome: ClockOutOutcome = "zero_hours";
+
       if (hours > 0) {
         if (entry.invoiceId) {
           linkedInvoice = await addEntryToSpecificInvoice(
@@ -272,9 +438,10 @@ export const timeEntriesRouter = createTRPCRouter({
             updated.id,
             description,
             hours,
-            entry.rate ?? 0,
+            rate,
             endedAt,
           );
+          outcome = linkedInvoice ? "linked_to_invoice" : "saved_no_invoice";
         } else if (entry.clientId) {
           linkedInvoice = await addEntryToLatestInvoice(
             ctx.db,
@@ -283,13 +450,23 @@ export const timeEntriesRouter = createTRPCRouter({
             updated.id,
             description,
             hours,
-            entry.rate ?? 0,
+            rate,
             endedAt,
           );
+          outcome = linkedInvoice ? "linked_to_invoice" : "saved_no_invoice";
+        } else {
+          outcome = "saved_no_client";
         }
       }
 
-      return { entry: updated, invoice: linkedInvoice };
+      return {
+        entry: updated,
+        invoice: linkedInvoice,
+        outcome,
+        hours,
+        rate,
+        amount: hours * rate,
+      };
     }),
 
   create: protectedProcedure

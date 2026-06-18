@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { index, pgTableCreator } from "drizzle-orm/pg-core";
+import { index, pgTableCreator, uniqueIndex } from "drizzle-orm/pg-core";
 
 /**
  * This is an example of how to use the multi-project schema feature of Drizzle ORM. Use the same
@@ -720,6 +720,9 @@ export const timeEntries = createTable(
     index("time_entry_client_id_idx").on(t.clientId),
     index("time_entry_started_at_idx").on(t.startedAt),
     index("time_entry_ended_at_idx").on(t.endedAt),
+    uniqueIndex("time_entry_one_running_per_user_idx")
+      .on(t.createdById)
+      .where(sql`${t.endedAt} is null`),
   ],
 );
 

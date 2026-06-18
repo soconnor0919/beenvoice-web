@@ -4,6 +4,7 @@ import { Plus, Timer, Trash2, Zap } from "lucide-react";
 import * as React from "react";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
@@ -15,7 +16,6 @@ import {
   useLineItemSuggestions,
   type LineItemSuggestion,
 } from "~/hooks/use-line-item-suggestions";
-import { TimeTracker } from "~/components/invoice/time-tracker";
 
 interface InvoiceItem {
   id: string;
@@ -37,6 +37,7 @@ interface InvoiceLineItemsProps {
   ) => void;
   onAddItemWithValues?: (parsed: ParsedLineItem) => void;
   invoiceId?: string;
+  clientId?: string;
   defaultRate?: number;
   className?: string;
 }
@@ -348,7 +349,8 @@ export function InvoiceLineItems({
   onUpdateItem,
   onAddItemWithValues,
   invoiceId,
-  defaultRate,
+  clientId,
+  defaultRate: _defaultRate,
   className,
 }: InvoiceLineItemsProps) {
   const canRemoveItems = items.length > 1;
@@ -422,18 +424,24 @@ export function InvoiceLineItems({
               />
             </React.Fragment>
           ))}
-          {onAddItemWithValues && invoiceId && (
+          {invoiceId && (
             <div className="border-t p-3 space-y-2">
               <p className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
-                <Timer className="h-3.5 w-3.5" /> Time tracker
+                <Timer className="h-3.5 w-3.5" /> Time clock
               </p>
-              <TimeTracker
-                invoiceId={invoiceId}
-                defaultRate={defaultRate}
-                onStop={(hours, description) => {
-                  onAddItemWithValues({ description, hours, rate: defaultRate ?? 0 });
-                }}
-              />
+              <p className="text-muted-foreground text-xs">
+                Track time on the dedicated time clock — entries sync across devices and
+                bill directly to an invoice.
+              </p>
+              <Button variant="outline" size="sm" className="w-full" asChild>
+                <Link
+                  href={`/dashboard/time-clock?invoiceId=${invoiceId}${
+                    clientId ? `&clientId=${clientId}` : ""
+                  }`}
+                >
+                  Open time clock
+                </Link>
+              </Button>
             </div>
           )}
           {onAddItemWithValues && (
