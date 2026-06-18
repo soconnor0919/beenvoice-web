@@ -99,6 +99,13 @@
       "when": 1781194385000,
       "tag": "0013_invoice_public_token_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1781300000000,
+      "tag": "0014_seed_demo_account",
+      "breakpoints": true
     }
   ]
 }
