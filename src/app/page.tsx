@@ -97,10 +97,10 @@ export default function HomePage() {
           <span>© 2026 {brand.name}</span>
           <div className="flex gap-5">
             <Link href="/privacy" className="hover:text-foreground">
-              Privacy
+              Privacy Policy
             </Link>
             <Link href="/terms" className="hover:text-foreground">
-              Terms
+              Terms of Service
             </Link>
           </div>
         </footer>

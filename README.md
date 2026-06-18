@@ -1,14 +1,29 @@
 ![beenvoice Logo](public/beenvoice-logo.png)
 
-# beenvoice - Invoicing Made Simple
+# beenvoice — Invoicing Made Simple
 
-A modern, professional invoicing application built for freelancers and small businesses. beenvoice provides a clean, efficient way to manage clients and create professional invoices with ease.
+Modern invoicing for freelancers and small businesses: clients, businesses, invoices, time tracking, expenses, recurring billing, PDF/email delivery, and optional SSO.
 
-![beenvoice Logo](https://img.shields.io/badge/beenvoice-Invoicing%20Made%20Simple-green?style=for-the-badge)
+**Architecture (dense):** [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)  
+**Mobile companion:** [../beenvoice-app/README.md](../beenvoice-app/README.md)
 
-## ✨ Features
+## Stack at a glance
 
-- **🔐 Secure Authentication** - Email/password registration and sign-in with better-auth, plus SSO via Authentik OIDC
+| Layer | Tech |
+|-------|------|
+| App | Next.js 16 App Router, React 19 |
+| API | tRPC 11 + SuperJSON |
+| DB | PostgreSQL, Drizzle ORM |
+| Auth | better-auth (email/password, Authentik OIDC, Expo mobile) |
+| UI | shadcn/ui, Tailwind v4 |
+| Email / PDF | Resend, @react-pdf/renderer |
+| Package manager | Bun |
+
+## Features
+
+- **🔐 Authentication** — better-auth: email/password, password reset, optional Authentik OIDC, Expo mobile sessions
+- **⏱ Time clock** — running timer, one per user; clock-out can append invoice line items
+- **🤖 MCP API** — `/api/mcp` for automation via API keys (`bv_…`)
 - **👥 Client Management** - Create, edit, and manage client information
 - **🏢 Business Profiles** - Manage your business details, logo, and email settings
 - **📄 Professional Invoices** - Generate detailed invoices with line items
@@ -103,35 +118,19 @@ A modern, professional invoicing application built for freelancers and small bus
 7. **Open your browser**
    Navigate to [http://localhost:3000](http://localhost:3000)
 
-## 🏗️ Project Structure
+## 🏗️ Project structure
+
+See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for routers, schema, auth, and MCP.
 
 ```
 beenvoice/
-├── src/
-│   ├── app/                    # Next.js App Router pages
-│   │   ├── api/               # API routes (better-auth, tRPC)
-│   │   ├── auth/              # Authentication pages
-│   │   ├── dashboard/         # Main app pages
-│   │   │   ├── clients/       # Client management pages
-│   │   │   ├── invoices/      # Invoice management pages
-│   │   │   └── businesses/    # Business profile pages
-│   │   └── _components/       # Page-specific components
-│   ├── components/            # Shared UI components
-│   │   ├── ui/               # shadcn/ui components
-│   │   ├── data/             # Data display components
-│   │   ├── forms/            # Form components
-│   │   └── layout/           # Layout components
-│   ├── server/               # Server-side code
-│   │   ├── api/              # tRPC routers
-│   │   └── db/               # Database schema and connection
-│   ├── lib/                  # Utilities (auth, pdf export, etc.)
-│   ├── styles/               # Global styles
-│   └── trpc/                 # tRPC client configuration
-├── drizzle/                  # Database migrations
-├── public/                   # Static assets
-├── docs/                     # Documentation
-├── docker-compose.yml        # Deployment compose stack
-└── docker-compose.dev.yml    # Development overrides with exposed PostgreSQL
+├── src/app/           # Pages + /api (auth, trpc, mcp, cron, public PDF)
+├── src/server/api/    # tRPC routers
+├── src/server/db/     # Drizzle schema + pool
+├── src/components/    # UI + domain components
+├── src/lib/           # auth, PDF, email, branding
+├── drizzle/           # SQL migrations
+└── docs/              # Architecture + UI guides
 ```
 
 ## 🎯 Usage
@@ -250,15 +249,14 @@ The application uses the following core tables:
 - **invoices** - Invoice headers with client and business relationships
 - **invoice_items** - Individual line items with pricing and position ordering
 
-### API Development
+### API surface
 
-All API endpoints are built with tRPC for type safety:
+- **tRPC** — `/api/trpc` — primary API for web and mobile (session cookies)
+- **MCP** — `/api/mcp` — JSON-RPC tools for integrations (API key only)
+- **REST auth** — `/api/auth/register`, forgot/reset password (mobile + custom flows)
+- **Public** — `/i/[token]`, `/api/i/[token]/pdf`
 
-- **Authentication**: better-auth integration (email/password + OIDC)
-- **Clients**: CRUD operations for client management
-- **Businesses**: Business profile management
-- **Invoices**: Invoice creation, management, and status tracking
-- **Validation**: Zod schemas for input validation
+All business logic lives in `src/server/api/routers/`. Input validation via Zod.
 
 ## 🎨 Customization
 

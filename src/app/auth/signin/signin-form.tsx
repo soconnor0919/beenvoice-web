@@ -9,7 +9,7 @@ import { Button } from "~/components/ui/button";
 import { Label } from "~/components/ui/label";
 import { toast } from "sonner";
 import { Logo } from "~/components/branding/logo";
-import { LegalModal } from "~/components/ui/legal-modal";
+import { LegalAgreementNotice } from "~/components/legal/legal-links";
 import { env } from "~/env";
 import { Mail, Lock, ArrowRight, Shield } from "lucide-react";
 
@@ -167,19 +167,7 @@ export function SignInForm({ allowRegistration }: SignInFormProps) {
               </p>
             )}
 
-            <p className="text-muted-foreground text-center text-xs">
-              By signing in you agree to our{" "}
-              <LegalModal
-                type="terms"
-                trigger={<span className="text-foreground cursor-pointer hover:underline">Terms</span>}
-              />{" "}
-              and{" "}
-              <LegalModal
-                type="privacy"
-                trigger={<span className="text-foreground cursor-pointer hover:underline">Privacy Policy</span>}
-              />
-              .
-            </p>
+            <LegalAgreementNotice action="signing in" />
           </div>
         </CardContent>
       </Card>

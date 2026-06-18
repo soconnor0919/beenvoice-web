@@ -8,7 +8,7 @@ import { Button } from "~/components/ui/button";
 import { Label } from "~/components/ui/label";
 import { toast } from "sonner";
 import { Logo } from "~/components/branding/logo";
-import { LegalModal } from "~/components/ui/legal-modal";
+import { LegalAgreementNotice } from "~/components/legal/legal-links";
 import {
   Lock,
   ArrowRight,
@@ -425,27 +425,10 @@ function ResetPasswordForm() {
                 </a>
               </div>
 
-              <div className="text-muted-foreground text-center text-xs leading-relaxed">
-                By resetting your password, you agree to our{" "}
-                <LegalModal
-                  type="terms"
-                  trigger={
-                    <span className="text-primary inline cursor-pointer hover:underline">
-                      Terms of Service
-                    </span>
-                  }
-                />{" "}
-                and{" "}
-                <LegalModal
-                  type="privacy"
-                  trigger={
-                    <span className="text-primary inline cursor-pointer hover:underline">
-                      Privacy Policy
-                    </span>
-                  }
-                />
-                .
-              </div>
+              <LegalAgreementNotice
+                action="resetting your password"
+                className="leading-relaxed"
+              />
             </div>
           </div>
         </CardContent>

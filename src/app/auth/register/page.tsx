@@ -8,7 +8,7 @@ import { Button } from "~/components/ui/button";
 import { Label } from "~/components/ui/label";
 import { toast } from "sonner";
 import { Logo } from "~/components/branding/logo";
-import { LegalModal } from "~/components/ui/legal-modal";
+import { LegalAgreementNotice } from "~/components/legal/legal-links";
 import { Mail, Lock, ArrowRight, User } from "lucide-react";
 
 function RegisterForm() {
@@ -151,19 +151,7 @@ function RegisterForm() {
               </a>
             </p>
 
-            <p className="text-muted-foreground text-center text-xs">
-              By creating an account you agree to our{" "}
-              <LegalModal
-                type="terms"
-                trigger={<span className="text-foreground cursor-pointer hover:underline">Terms</span>}
-              />{" "}
-              and{" "}
-              <LegalModal
-                type="privacy"
-                trigger={<span className="text-foreground cursor-pointer hover:underline">Privacy Policy</span>}
-              />
-              .
-            </p>
+            <LegalAgreementNotice action="creating an account" />
           </div>
         </CardContent>
       </Card>

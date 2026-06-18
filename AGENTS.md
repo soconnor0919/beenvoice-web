@@ -1,5 +1,7 @@
 # beenvoice - AI Assistant Rules
 
+> **Canonical architecture reference:** [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) (stack, routers, schema, auth). This file may lag behind; prefer ARCHITECTURE.md for facts.
+
 ## Project Overview
 beenvoice is a professional invoicing application built with the T3 stack (Next.js 15, tRPC, Drizzle/LibSQL, NextAuth.js) and shadcn/ui components. This is a business-critical application where reliability, security, and professional user experience are paramount.
 

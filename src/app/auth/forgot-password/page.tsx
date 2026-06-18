@@ -7,7 +7,7 @@ import { Button } from "~/components/ui/button";
 import { Label } from "~/components/ui/label";
 import { toast } from "sonner";
 import { Logo } from "~/components/branding/logo";
-import { LegalModal } from "~/components/ui/legal-modal";
+import { LegalAgreementNotice } from "~/components/legal/legal-links";
 import {
   Mail,
   ArrowRight,
@@ -347,27 +347,10 @@ function ForgotPasswordForm() {
                 </a>
               </div>
 
-              <div className="text-muted-foreground text-center text-xs leading-relaxed">
-                By using our service, you agree to our{" "}
-                <LegalModal
-                  type="terms"
-                  trigger={
-                    <span className="text-primary inline cursor-pointer hover:underline">
-                      Terms of Service
-                    </span>
-                  }
-                />{" "}
-                and{" "}
-                <LegalModal
-                  type="privacy"
-                  trigger={
-                    <span className="text-primary inline cursor-pointer hover:underline">
-                      Privacy Policy
-                    </span>
-                  }
-                />
-                .
-              </div>
+              <LegalAgreementNotice
+                action="using our service"
+                className="leading-relaxed"
+              />
             </div>
           </div>
         </CardContent>

@@ -29,6 +29,7 @@ import { useAuthSession } from "~/hooks/use-auth-session";
 import * as React from "react";
 import { useState } from "react";
 
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -84,6 +85,7 @@ import {
 import { useAppearance } from "~/components/providers/appearance-provider";
 import {
   bodyFontPreferences,
+  brand,
   colorModes,
   colorThemes,
   type ColorTheme,
@@ -701,6 +703,27 @@ export function SettingsContent() {
             </Card>
           )}
         </div>
+
+        <Card className="bg-card border-border border">
+          <CardHeader>
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <FileText className="text-primary h-5 w-5" />
+              Legal
+            </CardTitle>
+            <CardDescription>
+              Review how we handle your data and the terms for using{" "}
+              {brand.name}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row">
+            <Button variant="outline" asChild>
+              <Link href="/terms">Terms of Service</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/privacy">Privacy Policy</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </TabsContent>
 
       <TabsContent value="preferences" className="space-y-8">
