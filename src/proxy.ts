@@ -11,7 +11,13 @@ export function proxy(request: NextRequest) {
   }
 
   // Define public routes that don't require authentication
-  const publicRoutes = ["/", "/auth/signin", "/auth/register"];
+  const publicRoutes = [
+    "/",
+    "/auth/signin",
+    "/auth/register",
+    "/privacy",
+    "/terms",
+  ];
 
   // Define API routes that should be handled separately
   const apiRoutes = ["/api/auth", "/api/trpc", "/api/mcp", "/api/i"];
