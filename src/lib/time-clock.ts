@@ -32,7 +32,7 @@ export function describeClockOutOutcome(input: {
       }
       return `Added ${input.hours}h to invoice`;
     case "saved_no_invoice":
-      return `Saved ${input.hours}h — no open invoice found for this client. Pick an invoice on the time clock or create one.`;
+      return `Saved ${input.hours}h — could not create or find a draft invoice for this client.`;
     case "saved_no_client":
       return `Saved ${input.hours}h — assign a client and invoice to bill this time.`;
     case "zero_hours":

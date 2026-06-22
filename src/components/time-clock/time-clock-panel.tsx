@@ -134,7 +134,7 @@ export function TimeClockPanel({
     invoicePrefix: string | null;
     invoiceNumber: string;
     status: string;
-  }) => `${inv.invoicePrefix ?? "#"}${inv.invoiceNumber} (${inv.status})`;
+  }) => `${inv.invoicePrefix ?? "#"}${inv.invoiceNumber}`;
 
   const displayDescription = running ? running.description : description;
   const displayRate = running ? (running.rate ?? 0) : rate;

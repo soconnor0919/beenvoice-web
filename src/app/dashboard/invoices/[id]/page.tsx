@@ -52,6 +52,7 @@ import { Separator } from "~/components/ui/separator";
 import { Textarea } from "~/components/ui/textarea";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { DatePicker } from "~/components/ui/date-picker";
 import {
   getEffectiveInvoiceStatus,
   isInvoiceOverdue,
@@ -164,6 +165,15 @@ function InvoiceViewContent({ invoiceId }: { invoiceId: string }) {
       void utils.invoices.getById.invalidate({ id: invoiceId });
     },
     onError: (e) => toast.error(e.message ?? "Failed to send reminder"),
+  });
+
+  const updateInvoice = api.invoices.update.useMutation({
+    onSuccess: () => {
+      toast.success("Reminder saved");
+      void utils.invoices.getById.invalidate({ id: invoiceId });
+      void utils.dashboard.getStats.invalidate();
+    },
+    onError: (e) => toast.error(e.message ?? "Failed to save reminder"),
   });
 
   if (isLoading) return <InvoiceDetailsSkeleton />;
@@ -522,7 +532,7 @@ function InvoiceViewContent({ invoiceId }: { invoiceId: string }) {
 
         {/* Right Column - Actions */}
         <div className="space-y-6">
-          {effectiveStatus !== "paid" && (
+          {storedStatus === "draft" && (
             <InvoiceTimerCard invoiceId={invoiceId} clientId={invoice.clientId} />
           )}
 
@@ -550,6 +560,25 @@ function InvoiceViewContent({ invoiceId }: { invoiceId: string }) {
                   invoiceId={invoice.id}
                   className="w-full"
                   variant="secondary"
+                />
+              )}
+
+              {effectiveStatus === "draft" && (
+                <SendReminderEditor
+                  key={`${invoiceId}-${invoice.sendReminderAt?.toISOString() ?? "none"}`}
+                  invoiceId={invoiceId}
+                  savedReminderAt={invoice.sendReminderAt}
+                  formatDate={formatDate}
+                  isSaving={updateInvoice.isPending}
+                  onSave={(sendReminderAt) =>
+                    updateInvoice.mutate({
+                      id: invoiceId,
+                      sendReminderAt,
+                    })
+                  }
+                  onClear={() =>
+                    updateInvoice.mutate({ id: invoiceId, sendReminderAt: null })
+                  }
                 />
               )}
 
@@ -804,6 +833,67 @@ function InvoiceViewContent({ invoiceId }: { invoiceId: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function SendReminderEditor({
+  invoiceId,
+  savedReminderAt,
+  formatDate,
+  isSaving,
+  onSave,
+  onClear,
+}: {
+  invoiceId: string;
+  savedReminderAt: Date | null | undefined;
+  formatDate: (date: Date) => string;
+  isSaving: boolean;
+  onSave: (sendReminderAt: Date | null) => void;
+  onClear: () => void;
+}) {
+  const [sendReminderAt, setSendReminderAt] = useState<Date | undefined>(() =>
+    savedReminderAt ? new Date(savedReminderAt) : undefined,
+  );
+
+  return (
+    <div className="space-y-2 rounded-lg border p-3">
+      <Label htmlFor={`send-reminder-at-${invoiceId}`}>Remind me to send</Label>
+      <DatePicker
+        date={sendReminderAt}
+        onDateChange={setSendReminderAt}
+        className="w-full"
+      />
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1"
+          onClick={() => onSave(sendReminderAt ?? null)}
+          disabled={isSaving}
+        >
+          Save reminder
+        </Button>
+        {sendReminderAt ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSendReminderAt(undefined);
+              onClear();
+            }}
+          >
+            Clear
+          </Button>
+        ) : null}
+      </div>
+      {savedReminderAt ? (
+        <p className="text-muted-foreground text-xs">
+          {new Date(savedReminderAt) <= new Date()
+            ? "Reminder is due — time to send this invoice."
+            : `Scheduled for ${formatDate(savedReminderAt)}`}
+        </p>
+      ) : null}
     </div>
   );
 }

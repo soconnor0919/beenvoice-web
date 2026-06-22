@@ -40,6 +40,7 @@ interface InvoiceLineItemsProps {
   clientId?: string;
   defaultRate?: number;
   className?: string;
+  readOnly?: boolean;
 }
 
 interface LineItemRowProps {
@@ -55,6 +56,7 @@ interface LineItemRowProps {
   suggestions: LineItemSuggestion[];
   onSelectSuggestion: (index: number, suggestion: LineItemSuggestion) => void;
   onDescriptionChange: (index: number, value: string) => void;
+  readOnly?: boolean;
 }
 
 interface DescriptionAutocompleteProps {
@@ -64,6 +66,7 @@ interface DescriptionAutocompleteProps {
   suggestions: LineItemSuggestion[];
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 }
 
 function DescriptionAutocomplete({
@@ -73,6 +76,7 @@ function DescriptionAutocomplete({
   suggestions,
   placeholder,
   className,
+  disabled,
 }: DescriptionAutocompleteProps) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -116,6 +120,7 @@ function DescriptionAutocomplete({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         className={className}
+        disabled={disabled}
       />
       {showDropdown && (
         <div className="bg-popover text-popover-foreground border-border absolute top-full left-0 z-50 mt-1 w-full overflow-hidden rounded-md border shadow-md">
@@ -146,7 +151,7 @@ function DescriptionAutocomplete({
 }
 
 const LineItemCard = React.forwardRef<HTMLDivElement, LineItemRowProps>(
-  ({ item, index, canRemove, onRemove, onUpdate, suggestions, onSelectSuggestion, onDescriptionChange }, ref) => {
+  ({ item, index, canRemove, onRemove, onUpdate, suggestions, onSelectSuggestion, onDescriptionChange, readOnly }, ref) => {
     return (
       <div
         ref={ref}
@@ -160,6 +165,7 @@ const LineItemCard = React.forwardRef<HTMLDivElement, LineItemRowProps>(
           size="sm"
           className="w-full"
           inputClassName="h-9"
+          disabled={readOnly}
         />
 
         <DescriptionAutocomplete
@@ -169,6 +175,7 @@ const LineItemCard = React.forwardRef<HTMLDivElement, LineItemRowProps>(
           suggestions={suggestions}
           placeholder="Describe the work performed..."
           className="h-9 w-full text-sm font-medium"
+          disabled={readOnly}
         />
 
         <NumberInput
@@ -179,6 +186,7 @@ const LineItemCard = React.forwardRef<HTMLDivElement, LineItemRowProps>(
           width="full"
           className="h-9 font-mono [&_button]:w-6 [&_input]:min-w-12"
           suffix="h"
+          disabled={readOnly}
         />
 
         <NumberInput
@@ -189,23 +197,28 @@ const LineItemCard = React.forwardRef<HTMLDivElement, LineItemRowProps>(
           prefix="$"
           width="full"
           className="h-9 font-mono [&_button]:w-6 [&_input]:min-w-14"
+          disabled={readOnly}
         />
 
         <div className="text-primary text-right font-mono font-semibold">
           ${(item.hours * item.rate).toFixed(2)}
         </div>
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => onRemove(index)}
-          className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-          disabled={!canRemove}
-          aria-label="Remove item"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        {!readOnly ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onRemove(index)}
+            className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
+            disabled={!canRemove}
+            aria-label="Remove item"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        ) : (
+          <span />
+        )}
       </div>
     );
   },
@@ -221,6 +234,7 @@ function MobileLineItem({
   suggestions,
   onSelectSuggestion,
   onDescriptionChange,
+  readOnly,
 }: LineItemRowProps) {
   return (
     <motion.div
@@ -243,6 +257,7 @@ function MobileLineItem({
             suggestions={suggestions}
             placeholder="Describe the work performed..."
             className="pl-3 text-sm"
+            disabled={readOnly}
           />
         </div>
 
@@ -254,6 +269,7 @@ function MobileLineItem({
             onDateChange={(date) => onUpdate(index, "date", date ?? new Date())}
             size="sm"
             inputClassName="h-9"
+            disabled={readOnly}
           />
         </div>
 
@@ -267,6 +283,7 @@ function MobileLineItem({
               min={0}
               step={0.25}
               width="full"
+              disabled={readOnly}
             />
           </div>
           <div className="space-y-1">
@@ -279,6 +296,7 @@ function MobileLineItem({
               prefix="$"
               width="full"
               className="font-mono"
+              disabled={readOnly}
             />
           </div>
         </div>
@@ -287,17 +305,19 @@ function MobileLineItem({
       {/* Bottom section with controls, item name, and total */}
       <div className="border-border bg-muted/50 flex items-center justify-between border-t px-4 py-2">
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onRemove(index)}
-            className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-            disabled={!canRemove}
-            aria-label="Remove item"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {!readOnly ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onRemove(index)}
+              className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
+              disabled={!canRemove}
+              aria-label="Remove item"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          ) : null}
         </div>
         <div className="flex-1 px-3 text-center">
           <span className="text-muted-foreground block text-sm font-medium">
@@ -352,6 +372,7 @@ export function InvoiceLineItems({
   clientId,
   defaultRate: _defaultRate,
   className,
+  readOnly = false,
 }: InvoiceLineItemsProps) {
   const canRemoveItems = items.length > 1;
   const { search } = useLineItemSuggestions();
@@ -378,6 +399,11 @@ export function InvoiceLineItems({
 
   return (
     <div className={cn("space-y-2", className)}>
+      {readOnly ? (
+        <p className="text-muted-foreground text-sm">
+          Line items are locked after an invoice is sent. Revert to draft to edit entries.
+        </p>
+      ) : null}
       <AnimatePresence>
         <div className="space-y-2 md:space-y-0 md:overflow-hidden md:rounded-lg md:border">
           <div className="bg-muted/60 text-muted-foreground hidden grid-cols-[140px_minmax(200px,1fr)_124px_136px_104px_32px] gap-2 border-b px-3 py-2 text-xs font-medium md:grid">
@@ -408,6 +434,7 @@ export function InvoiceLineItems({
                   suggestions={getSuggestionsForIndex(index)}
                   onSelectSuggestion={handleSelectSuggestion}
                   onDescriptionChange={handleDescriptionChange}
+                  readOnly={readOnly}
                 />
               </motion.div>
 
@@ -421,6 +448,7 @@ export function InvoiceLineItems({
                 suggestions={getSuggestionsForIndex(index)}
                 onSelectSuggestion={handleSelectSuggestion}
                 onDescriptionChange={handleDescriptionChange}
+                readOnly={readOnly}
               />
             </React.Fragment>
           ))}
@@ -444,22 +472,23 @@ export function InvoiceLineItems({
               </Button>
             </div>
           )}
-          {onAddItemWithValues && (
+          {onAddItemWithValues && !readOnly ? (
             <NLQuickAdd onAdd={onAddItemWithValues} />
-          )}
+          ) : null}
         </div>
       </AnimatePresence>
 
-      {/* Add Item Button */}
-      <Button
-        type="button"
-        variant="outline"
-        onClick={onAddItem}
-        className="border-border text-muted-foreground hover:text-primary hover:bg-accent/50 hover:border-primary/50 mt-3 w-full border-dashed py-6 transition-all"
-      >
-        <Plus className="mr-2 h-4 w-4" />
-        Add Line Item
-      </Button>
+      {!readOnly ? (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onAddItem}
+          className="border-border text-muted-foreground hover:text-primary hover:bg-accent/50 hover:border-primary/50 mt-3 w-full border-dashed py-6 transition-all"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Add Line Item
+        </Button>
+      ) : null}
     </div>
   );
 }

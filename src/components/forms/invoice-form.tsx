@@ -808,6 +808,7 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
                   invoiceId={invoiceId && invoiceId !== "new" ? invoiceId : undefined}
                   clientId={formData.clientId || undefined}
                   defaultRate={formData.items[0]?.rate}
+                  readOnly={formData.status !== "draft"}
                 />
               </CardContent>
             </Card>
@@ -831,6 +832,7 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
                   onRemoveItem={removeItem}
                   onUpdateItem={updateItem}
                   defaultHourlyRate={formData.defaultHourlyRate}
+                  readOnly={formData.status !== "draft"}
                 />
               </CardContent>
             </Card>

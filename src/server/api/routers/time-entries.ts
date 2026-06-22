@@ -1,13 +1,14 @@
 import { z } from "zod";
-import { eq, and, desc, isNull, isNotNull, gte, lte, or } from "drizzle-orm";
+import { eq, and, desc, isNull, isNotNull, gte, lte } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { timeEntries, clients, invoices, invoiceItems } from "~/server/db/schema";
+import { timeEntries, clients, invoices, invoiceItems, businesses } from "~/server/db/schema";
 import { TRPCError } from "@trpc/server";
 import type { db } from "~/server/db";
 import {
   computeTrackedHours,
   type ClockOutOutcome,
 } from "~/lib/time-clock";
+import { defaultDueDate, generateInvoiceNumber } from "~/lib/draft-invoice";
 
 type Db = typeof db;
 
@@ -86,6 +87,60 @@ async function addEntryToInvoice(
   };
 }
 
+async function findOrCreateDraftInvoice(
+  database: Db,
+  userId: string,
+  clientId: string,
+) {
+  const existing = await database.query.invoices.findFirst({
+    where: and(
+      eq(invoices.clientId, clientId),
+      eq(invoices.createdById, userId),
+      eq(invoices.status, "draft"),
+    ),
+    with: { items: true },
+    orderBy: [
+      desc(invoices.updatedAt),
+      desc(invoices.issueDate),
+      desc(invoices.invoiceNumber),
+    ],
+  });
+
+  if (existing) return existing;
+
+  const client = await database.query.clients.findFirst({
+    where: and(eq(clients.id, clientId), eq(clients.createdById, userId)),
+    columns: { currency: true },
+  });
+  if (!client) return null;
+
+  const defaultBusiness = await database.query.businesses.findFirst({
+    where: and(eq(businesses.createdById, userId), eq(businesses.isDefault, true)),
+    columns: { id: true },
+  });
+
+  const issueDate = new Date();
+  const [created] = await database
+    .insert(invoices)
+    .values({
+      invoiceNumber: generateInvoiceNumber(issueDate),
+      clientId,
+      businessId: defaultBusiness?.id ?? null,
+      issueDate,
+      dueDate: defaultDueDate(issueDate),
+      status: "draft",
+      totalAmount: 0,
+      taxRate: 0,
+      currency: client.currency,
+      createdById: userId,
+    })
+    .returning();
+
+  if (!created) return null;
+
+  return { ...created, items: [] as { amount: number; position: number }[] };
+}
+
 async function addEntryToLatestInvoice(
   database: Db,
   userId: string,
@@ -96,20 +151,7 @@ async function addEntryToLatestInvoice(
   rate: number,
   date: Date,
 ): Promise<{ id: string; invoiceNumber: string; invoicePrefix: string } | null> {
-  const invoice = await database.query.invoices.findFirst({
-    where: and(
-      eq(invoices.clientId, clientId),
-      eq(invoices.createdById, userId),
-      or(eq(invoices.status, "draft"), eq(invoices.status, "sent")),
-    ),
-    with: { items: true },
-    orderBy: [
-      desc(invoices.issueDate),
-      desc(invoices.dueDate),
-      desc(invoices.invoiceNumber),
-    ],
-  });
-
+  const invoice = await findOrCreateDraftInvoice(database, userId, clientId);
   if (!invoice) return null;
   return addEntryToInvoice(database, invoice, entryId, description, hours, rate, date);
 }
@@ -128,7 +170,7 @@ async function addEntryToSpecificInvoice(
     where: and(
       eq(invoices.id, invoiceId),
       eq(invoices.createdById, userId),
-      or(eq(invoices.status, "draft"), eq(invoices.status, "sent")),
+      eq(invoices.status, "draft"),
     ),
     with: { items: true },
   });
@@ -231,14 +273,14 @@ export const timeEntriesRouter = createTRPCRouter({
           where: and(
             eq(invoices.id, invoiceId),
             eq(invoices.createdById, ctx.session.user.id),
-            or(eq(invoices.status, "draft"), eq(invoices.status, "sent")),
+            eq(invoices.status, "draft"),
           ),
           columns: { id: true, clientId: true },
         });
         if (!invoice) {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: "Invoice not found or not open for time tracking",
+            message: "Only draft invoices accept new time entries",
           });
         }
         if (resolvedClientId && invoice.clientId !== resolvedClientId) {
@@ -345,14 +387,14 @@ export const timeEntriesRouter = createTRPCRouter({
             where: and(
               eq(invoices.id, invoiceId),
               eq(invoices.createdById, ctx.session.user.id),
-              or(eq(invoices.status, "draft"), eq(invoices.status, "sent")),
+              eq(invoices.status, "draft"),
             ),
             columns: { id: true, clientId: true },
           });
           if (!invoice) {
             throw new TRPCError({
               code: "FORBIDDEN",
-              message: "Invoice not found or not open for time tracking",
+              message: "Only draft invoices accept new time entries",
             });
           }
           if (resolvedClientId && invoice.clientId !== resolvedClientId) {

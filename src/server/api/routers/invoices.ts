@@ -43,6 +43,7 @@ const createInvoiceSchema = z.object({
   emailMessage: z.string().optional().or(z.literal("")),
   taxRate: z.number().min(0).max(100).default(0),
   currency: z.string().length(3).default("USD"),
+  sendReminderAt: z.date().nullable().optional(),
   items: z.array(invoiceItemSchema).min(1, "At least one item is required"),
 });
 
@@ -155,13 +156,13 @@ export const invoicesRouter = createTRPCRouter({
       }
     }),
 
-  /** Draft and sent invoices available for time-clock billing. */
+  /** Draft invoices available for time-clock billing. */
   getBillable: protectedProcedure
     .input(z.object({ clientId: z.string().optional() }).optional())
     .query(async ({ ctx, input }) => {
       const conditions = [
         eq(invoices.createdById, ctx.session.user.id),
-        inArray(invoices.status, ["draft", "sent"]),
+        eq(invoices.status, "draft"),
       ];
       if (input?.clientId) conditions.push(eq(invoices.clientId, input.clientId));
 
@@ -415,6 +416,23 @@ export const invoicesRouter = createTRPCRouter({
           throw new TRPCError({
             code: "FORBIDDEN",
             message: "You don't have permission to update this invoice",
+          });
+        }
+
+        if (items && existingInvoice.status !== "draft") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Line items can only be edited on draft invoices",
+          });
+        }
+
+        if (
+          cleanInvoiceData.sendReminderAt !== undefined &&
+          existingInvoice.status !== "draft"
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Send reminders can only be set on draft invoices",
           });
         }
 

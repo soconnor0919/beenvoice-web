@@ -369,6 +369,7 @@ export const invoices = createTable(
     publicToken: d.varchar({ length: 255 }).unique(),
     publicTokenExpiresAt: d.timestamp(),
     lastReminderSentAt: d.timestamp(),
+    sendReminderAt: d.timestamp(),
     createdAt: d
       .timestamp()
       .default(sql`CURRENT_TIMESTAMP`)

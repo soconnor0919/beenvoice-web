@@ -1,6 +1,6 @@
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { invoices, clients } from "~/server/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { and, desc, eq, isNotNull, lte } from "drizzle-orm";
 
 export const dashboardRouter = createTRPCRouter({
   getStats: protectedProcedure.query(async ({ ctx }) => {
@@ -118,6 +118,26 @@ export const dashboardRouter = createTRPCRouter({
       },
     });
 
+    const sendReminderDue = await ctx.db.query.invoices.findMany({
+      where: and(
+        eq(invoices.createdById, userId),
+        eq(invoices.status, "draft"),
+        isNotNull(invoices.sendReminderAt),
+        lte(invoices.sendReminderAt, now),
+      ),
+      columns: {
+        id: true,
+        invoiceNumber: true,
+        invoicePrefix: true,
+        sendReminderAt: true,
+      },
+      with: {
+        client: { columns: { name: true } },
+      },
+      orderBy: [desc(invoices.sendReminderAt)],
+      limit: 10,
+    });
+
     return {
       totalRevenue,
       pendingAmount,
@@ -129,6 +149,7 @@ export const dashboardRouter = createTRPCRouter({
           : 0,
       revenueChartData,
       recentInvoices,
+      sendReminderDue,
     };
   }),
 });

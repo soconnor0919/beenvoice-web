@@ -54,6 +54,7 @@ interface InvoiceCalendarViewProps {
   onRemoveItem: (index: number) => void;
   className?: string;
   defaultHourlyRate: number | null;
+  readOnly?: boolean;
 }
 
 export function InvoiceCalendarView({
@@ -63,6 +64,7 @@ export function InvoiceCalendarView({
   onRemoveItem,
   className,
   defaultHourlyRate: _defaultHourlyRate,
+  readOnly = false,
 }: InvoiceCalendarViewProps) {
   const [date, setDate] = React.useState<Date | undefined>(undefined); // Start unselected
   const [viewDate, setViewDate] = React.useState<Date>(new Date()); // Controls the view (month/week)
@@ -403,10 +405,12 @@ export function InvoiceCalendarView({
                       There are no time entries recorded for this day yet.
                     </p>
                   </div>
-                  <Button onClick={handleAddNewItem} className="mt-2" size="lg">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Log Time
-                  </Button>
+                  {!readOnly ? (
+                    <Button onClick={handleAddNewItem} className="mt-2" size="lg">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Log Time
+                    </Button>
+                  ) : null}
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -428,6 +432,7 @@ export function InvoiceCalendarView({
                             }
                             placeholder="Describe the work performed..."
                             className="pl-3 text-sm"
+                            disabled={readOnly}
                           />
                         </div>
 
@@ -443,6 +448,7 @@ export function InvoiceCalendarView({
                               step={0.25}
                               min={0}
                               width="full"
+                              disabled={readOnly}
                             />
                           </div>
                           <div className="space-y-1">
@@ -456,6 +462,7 @@ export function InvoiceCalendarView({
                               min={0}
                               step={1}
                               width="full"
+                              disabled={readOnly}
                             />
                           </div>
                         </div>
@@ -464,15 +471,17 @@ export function InvoiceCalendarView({
                       {/* Bottom section with controls, item name, and total */}
                       <div className="border-border bg-muted/50 flex items-center justify-between border-t px-4 py-2">
                         <div className="flex items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onRemoveItem(index)}
-                            className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {!readOnly ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onRemoveItem(index)}
+                              className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          ) : null}
                         </div>
                         <div className="flex-1 px-3 text-center">
                           <span className="text-muted-foreground block text-sm font-medium">
@@ -490,16 +499,18 @@ export function InvoiceCalendarView({
                       </div>
                     </div>
                   ))}
-                  <Button
-                    variant="outline"
-                    onClick={handleAddNewItem}
-                    className="hover:bg-accent/50 hover:border-primary/50 text-muted-foreground hover:text-primary group w-full gap-2 rounded-xl border-dashed py-8 transition-all"
-                  >
-                    <div className="bg-muted group-hover:bg-primary/10 rounded-md p-1 transition-colors">
-                      <Plus className="h-4 w-4" />
-                    </div>
-                    <span>Add Another Entry</span>
-                  </Button>
+                  {!readOnly ? (
+                    <Button
+                      variant="outline"
+                      onClick={handleAddNewItem}
+                      className="hover:bg-accent/50 hover:border-primary/50 text-muted-foreground hover:text-primary group w-full gap-2 rounded-xl border-dashed py-8 transition-all"
+                    >
+                      <div className="bg-muted group-hover:bg-primary/10 rounded-md p-1 transition-colors">
+                        <Plus className="h-4 w-4" />
+                      </div>
+                      <span>Add Another Entry</span>
+                    </Button>
+                  ) : null}
                 </div>
               )}
             </div>
