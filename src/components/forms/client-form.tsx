@@ -99,7 +99,7 @@ export function ClientForm({ clientId, mode }: ClientFormProps) {
   const createClient = api.clients.create.useMutation({
     onSuccess: () => {
       toast.success("Client created successfully");
-      router.push("/dashboard/clients");
+      router.push("/dashboard/entities?tab=clients");
     },
     onError: (error) => {
       toast.error(error.message || "Failed to create client");
@@ -109,7 +109,7 @@ export function ClientForm({ clientId, mode }: ClientFormProps) {
   const updateClient = api.clients.update.useMutation({
     onSuccess: () => {
       toast.success("Client updated successfully");
-      router.push("/dashboard/clients");
+      router.push("/dashboard/entities?tab=clients");
     },
     onError: (error) => {
       toast.error(error.message || "Failed to update client");
@@ -232,7 +232,7 @@ export function ClientForm({ clientId, mode }: ClientFormProps) {
       );
       if (!confirmed) return;
     }
-    router.push("/dashboard/clients");
+    router.push("/dashboard/entities?tab=clients");
   };
 
   if (mode === "edit" && isLoadingClient) {

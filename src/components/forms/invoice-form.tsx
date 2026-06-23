@@ -52,6 +52,7 @@ import {
 import { STATUS_OPTIONS } from "./invoice/types";
 import type { InvoiceFormData, InvoiceItem } from "./invoice/types";
 import type { ParsedLineItem } from "~/lib/parse-line-item";
+import { InvoicePdfPreviewPanel } from "./invoice/invoice-pdf-preview-panel";
 
 import { CountUp } from "~/components/ui/count-up";
 
@@ -135,6 +136,15 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
   const [previewTab, setPreviewTab] = useState("pdf");
+  const [previewPinned, setPreviewPinned] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px)");
+    const update = () => setPreviewPinned(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   // Queries (Same as before)
   const { data: clients, isLoading: loadingClients } =
@@ -254,17 +264,6 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
     [formData],
   );
 
-  const { data: pdfPreview, isFetching: pdfPreviewLoading } =
-    api.invoices.previewPdf.useQuery(pdfPreviewInput, {
-      enabled:
-        activeTab === "preview" &&
-        previewTab === "pdf" &&
-        Boolean(formData.clientId) &&
-        formData.items.length > 0 &&
-        formData.items.every((item) => item.description.trim() !== ""),
-      refetchOnWindowFocus: false,
-      staleTime: 0,
-    });
   const selectedClient = React.useMemo(
     () => clients?.find((client) => client.id === formData.clientId),
     [clients, formData.clientId],
@@ -480,9 +479,10 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
           </Button>
         </PageHeader>
 
-        <Tabs value={activeTab} className="w-full" onValueChange={setActiveTab}>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
+          <Tabs value={activeTab} className="w-full" onValueChange={setActiveTab}>
           {/* TAB SELECTOR: w-full, p-1, visible background */}
-          <TabsList className="bg-muted grid h-auto w-full grid-cols-4 rounded-xl p-1">
+          <TabsList className="bg-muted grid h-auto w-full grid-cols-4 rounded-xl p-1 lg:grid-cols-3">
             <TabsTrigger
               value="details"
               className="data-[state=active]:bg-background rounded-lg py-2.5 data-[state=active]:shadow-sm"
@@ -503,7 +503,7 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
             </TabsTrigger>
             <TabsTrigger
               value="preview"
-              className="data-[state=active]:bg-background rounded-lg py-2.5 data-[state=active]:shadow-sm"
+              className="data-[state=active]:bg-background rounded-lg py-2.5 data-[state=active]:shadow-sm lg:hidden"
             >
               Preview
             </TabsTrigger>
@@ -863,43 +863,7 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
               </TabsList>
 
               <TabsContent value="pdf" className="mt-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex gap-2">
-                      <FileText className="h-5 w-5" /> PDF Preview
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="bg-muted/20 h-[760px] overflow-hidden border-t">
-                      {!formData.clientId ? (
-                        <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
-                          Select a client to generate the PDF preview.
-                        </div>
-                      ) : formData.items.some(
-                          (item) => item.description.trim() === "",
-                        ) ? (
-                        <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
-                          Add descriptions for all line items to generate the
-                          PDF preview.
-                        </div>
-                      ) : pdfPreviewLoading && !pdfPreview ? (
-                        <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
-                          Generating server PDF preview...
-                        </div>
-                      ) : pdfPreview ? (
-                        <iframe
-                          title="Server-generated PDF preview"
-                          src={`data:${pdfPreview.contentType};base64,${pdfPreview.base64}`}
-                          className="h-full w-full border-0"
-                        />
-                      ) : (
-                        <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
-                          PDF preview will appear here.
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                <InvoicePdfPreviewPanel input={pdfPreviewInput} />
               </TabsContent>
 
               <TabsContent value="email" className="mt-6">
@@ -954,6 +918,24 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
             </Tabs>
           </TabsContent>
         </Tabs>
+
+          <aside className="hidden lg:block">
+            <div className="sticky top-4 space-y-4">
+              <InvoicePdfPreviewPanel
+                input={pdfPreviewInput}
+                enabled={previewPinned || activeTab === "preview"}
+              />
+              <Card className="border-primary/20 bg-primary/5">
+                <CardContent className="flex items-center justify-between p-4">
+                  <span className="text-muted-foreground text-sm">Invoice total</span>
+                  <span className="font-mono text-2xl font-bold">
+                    <CountUp value={totals.total} prefix="$" />
+                  </span>
+                </CardContent>
+              </Card>
+            </div>
+          </aside>
+        </div>
       </div>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

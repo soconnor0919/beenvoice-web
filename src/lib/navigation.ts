@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   Users,
   FileText,
-  Building,
   Receipt,
   BarChart2,
   Shield,
@@ -22,14 +21,24 @@ export interface NavSection {
   links: NavLink[];
 }
 
+export function isNavLinkActive(pathname: string, href: string): boolean {
+  if (href === "/dashboard/entities") {
+    return (
+      pathname === href ||
+      pathname.startsWith("/dashboard/clients") ||
+      pathname.startsWith("/dashboard/businesses")
+    );
+  }
+  return pathname === href;
+}
+
 export const navigationConfig: NavSection[] = [
   {
     title: "Main",
     links: [
       { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { name: "Time clock", href: "/dashboard/time-clock", icon: Clock },
-      { name: "Clients", href: "/dashboard/clients", icon: Users },
-      { name: "Businesses", href: "/dashboard/businesses", icon: Building },
+      { name: "Entities", href: "/dashboard/entities", icon: Users },
       { name: "Invoices", href: "/dashboard/invoices", icon: FileText },
       { name: "Recurring", href: "/dashboard/invoices/recurring", icon: RefreshCw },
       { name: "Expenses", href: "/dashboard/expenses", icon: Receipt },

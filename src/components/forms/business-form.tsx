@@ -338,7 +338,7 @@ export function BusinessForm({ businessId, mode }: BusinessFormProps) {
         }
 
         toast.success("Business created successfully");
-        router.push("/dashboard/businesses");
+        router.push("/dashboard/entities?tab=businesses");
       } else {
         // Update business data (excluding email config fields)
         const businessData = {
@@ -386,7 +386,7 @@ export function BusinessForm({ businessId, mode }: BusinessFormProps) {
         }
 
         toast.success("Business updated successfully");
-        router.push("/dashboard/businesses");
+        router.push("/dashboard/entities?tab=businesses");
       }
     } finally {
       setIsSubmitting(false);
@@ -400,7 +400,7 @@ export function BusinessForm({ businessId, mode }: BusinessFormProps) {
       );
       if (!confirmed) return;
     }
-    router.push("/dashboard/businesses");
+    router.push("/dashboard/entities?tab=businesses");
   };
 
   if (

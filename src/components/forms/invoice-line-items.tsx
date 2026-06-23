@@ -8,7 +8,6 @@ import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
 import { NumberInput } from "~/components/ui/number-input";
 import { cn } from "~/lib/utils";
 import { parseLineItem, type ParsedLineItem } from "~/lib/parse-line-item";
@@ -156,7 +155,7 @@ const LineItemCard = React.forwardRef<HTMLDivElement, LineItemRowProps>(
       <div
         ref={ref}
         className={cn(
-          "group hover:bg-muted/40 hidden min-h-16 grid-cols-[140px_minmax(200px,1fr)_124px_136px_104px_32px] items-center gap-2 border-b px-3 py-2 transition-colors md:grid",
+          "group hover:bg-muted/30 hidden min-h-11 grid-cols-[108px_minmax(180px,1fr)_96px_108px_88px_28px] items-center gap-1.5 border-b px-2 py-1.5 transition-colors md:grid",
         )}
       >
         <DatePicker
@@ -164,7 +163,7 @@ const LineItemCard = React.forwardRef<HTMLDivElement, LineItemRowProps>(
           onDateChange={(date) => onUpdate(index, "date", date ?? new Date())}
           size="sm"
           className="w-full"
-          inputClassName="h-9"
+          inputClassName="h-8 text-xs"
           disabled={readOnly}
         />
 
@@ -173,8 +172,8 @@ const LineItemCard = React.forwardRef<HTMLDivElement, LineItemRowProps>(
           onChange={(v) => onDescriptionChange(index, v)}
           onSelect={(s) => onSelectSuggestion(index, s)}
           suggestions={suggestions}
-          placeholder="Describe the work performed..."
-          className="h-9 w-full text-sm font-medium"
+          placeholder="Description"
+          className="h-8 w-full text-sm"
           disabled={readOnly}
         />
 
@@ -184,7 +183,7 @@ const LineItemCard = React.forwardRef<HTMLDivElement, LineItemRowProps>(
           min={0}
           step={0.25}
           width="full"
-          className="h-9 font-mono [&_button]:w-6 [&_input]:min-w-12"
+          className="h-8 font-mono [&_button]:h-7 [&_button]:w-5 [&_input]:min-w-10 [&_input]:text-xs"
           suffix="h"
           disabled={readOnly}
         />
@@ -196,11 +195,11 @@ const LineItemCard = React.forwardRef<HTMLDivElement, LineItemRowProps>(
           step={1}
           prefix="$"
           width="full"
-          className="h-9 font-mono [&_button]:w-6 [&_input]:min-w-14"
+          className="h-8 font-mono [&_button]:h-7 [&_button]:w-5 [&_input]:min-w-12 [&_input]:text-xs"
           disabled={readOnly}
         />
 
-        <div className="text-primary text-right font-mono font-semibold">
+        <div className="text-primary text-right font-mono text-sm font-semibold tabular-nums">
           ${(item.hours * item.rate).toFixed(2)}
         </div>
 
@@ -210,11 +209,11 @@ const LineItemCard = React.forwardRef<HTMLDivElement, LineItemRowProps>(
             variant="ghost"
             size="sm"
             onClick={() => onRemove(index)}
-            className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
+            className="text-muted-foreground hover:text-destructive h-7 w-7 p-0"
             disabled={!canRemove}
             aria-label="Remove item"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         ) : (
           <span />
@@ -237,103 +236,72 @@ function MobileLineItem({
   readOnly,
 }: LineItemRowProps) {
   return (
-    <motion.div
-      layout
+    <div
       id={`invoice-item-${index}-mobile`}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
-      className="border-border bg-card overflow-hidden rounded-lg border md:hidden"
+      className="border-border space-y-1.5 border-b px-3 py-2 md:hidden"
     >
-      <div className="space-y-3 p-4">
-        {/* Description */}
-        <div className="space-y-1">
-          <Label className="text-muted-foreground text-xs">Description</Label>
-          <DescriptionAutocomplete
-            value={item.description}
-            onChange={(v) => onDescriptionChange(index, v)}
-            onSelect={(s) => onSelectSuggestion(index, s)}
-            suggestions={suggestions}
-            placeholder="Describe the work performed..."
-            className="pl-3 text-sm"
-            disabled={readOnly}
-          />
-        </div>
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground w-5 shrink-0 text-center text-xs font-semibold">
+          {index + 1}
+        </span>
+        <DescriptionAutocomplete
+          value={item.description}
+          onChange={(v) => onDescriptionChange(index, v)}
+          onSelect={(s) => onSelectSuggestion(index, s)}
+          suggestions={suggestions}
+          placeholder="Description"
+          className="h-8 flex-1 text-sm"
+          disabled={readOnly}
+        />
+      </div>
 
-        {/* Date */}
-        <div className="space-y-1">
-          <Label className="text-muted-foreground text-xs">Date</Label>
-          <DatePicker
-            date={item.date}
-            onDateChange={(date) => onUpdate(index, "date", date ?? new Date())}
+      <div className="flex items-center gap-1.5 pl-7">
+        <DatePicker
+          date={item.date}
+          onDateChange={(date) => onUpdate(index, "date", date ?? new Date())}
+          size="sm"
+          className="w-[92px] shrink-0"
+          inputClassName="h-8 px-2 text-xs"
+          disabled={readOnly}
+        />
+        <NumberInput
+          value={item.hours}
+          onChange={(value) => onUpdate(index, "hours", value)}
+          min={0}
+          step={0.25}
+          width="full"
+          className="h-8 w-[88px] shrink-0 font-mono [&_button]:h-7 [&_button]:w-5 [&_input]:min-w-8 [&_input]:text-xs"
+          suffix="h"
+          disabled={readOnly}
+        />
+        <NumberInput
+          value={item.rate}
+          onChange={(value) => onUpdate(index, "rate", value)}
+          min={0}
+          step={1}
+          prefix="$"
+          width="full"
+          className="h-8 w-[84px] shrink-0 font-mono [&_button]:h-7 [&_button]:w-5 [&_input]:min-w-10 [&_input]:text-xs"
+          disabled={readOnly}
+        />
+        <span className="text-primary ml-auto font-mono text-sm font-semibold tabular-nums">
+          ${(item.hours * item.rate).toFixed(2)}
+        </span>
+        {!readOnly ? (
+          <Button
+            type="button"
+            variant="ghost"
             size="sm"
-            inputClassName="h-9"
-            disabled={readOnly}
-          />
-        </div>
-
-        {/* Hours and Rate in a row */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label className="text-muted-foreground text-xs">Hours</Label>
-            <NumberInput
-              value={item.hours}
-              onChange={(value) => onUpdate(index, "hours", value)}
-              min={0}
-              step={0.25}
-              width="full"
-              disabled={readOnly}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-muted-foreground text-xs">Rate</Label>
-            <NumberInput
-              value={item.rate}
-              onChange={(value) => onUpdate(index, "rate", value)}
-              min={0}
-              step={1}
-              prefix="$"
-              width="full"
-              className="font-mono"
-              disabled={readOnly}
-            />
-          </div>
-        </div>
+            onClick={() => onRemove(index)}
+            className="text-muted-foreground hover:text-destructive h-7 w-7 shrink-0 p-0"
+            disabled={!canRemove}
+            aria-label="Remove item"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
       </div>
-
-      {/* Bottom section with controls, item name, and total */}
-      <div className="border-border bg-muted/50 flex items-center justify-between border-t px-4 py-2">
-        <div className="flex items-center gap-2">
-          {!readOnly ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => onRemove(index)}
-              className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-              disabled={!canRemove}
-              aria-label="Remove item"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          ) : null}
-        </div>
-        <div className="flex-1 px-3 text-center">
-          <span className="text-muted-foreground block text-sm font-medium">
-            <span className="hidden sm:inline">Item </span>
-            <span className="sm:hidden">#</span>
-            {index + 1}
-          </span>
-        </div>
-        <div className="flex flex-col items-end">
-          <span className="text-muted-foreground text-xs">Total</span>
-          <span className="text-primary text-lg font-bold">
-            ${(item.hours * item.rate).toFixed(2)}
-          </span>
-        </div>
-      </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -405,12 +373,12 @@ export function InvoiceLineItems({
         </p>
       ) : null}
       <AnimatePresence>
-        <div className="space-y-2 md:space-y-0 md:overflow-hidden md:rounded-lg md:border">
-          <div className="bg-muted/60 text-muted-foreground hidden grid-cols-[140px_minmax(200px,1fr)_124px_136px_104px_32px] gap-2 border-b px-3 py-2 text-xs font-medium md:grid">
+        <div className="space-y-0 md:overflow-hidden md:rounded-lg md:border">
+          <div className="bg-muted/60 text-muted-foreground hidden grid-cols-[108px_minmax(180px,1fr)_96px_108px_88px_28px] gap-1.5 border-b px-2 py-1.5 text-[11px] font-semibold tracking-wide uppercase md:grid">
             <span>Date</span>
             <span>Description</span>
-            <span className="text-right">Hours</span>
-            <span className="text-right">Rate</span>
+            <span className="text-center">Hours</span>
+            <span className="text-center">Rate</span>
             <span className="text-right">Amount</span>
             <span />
           </div>
@@ -483,7 +451,7 @@ export function InvoiceLineItems({
           type="button"
           variant="outline"
           onClick={onAddItem}
-          className="border-border text-muted-foreground hover:text-primary hover:bg-accent/50 hover:border-primary/50 mt-3 w-full border-dashed py-6 transition-all"
+          className="border-border text-muted-foreground hover:text-primary hover:bg-accent/50 hover:border-primary/50 mt-2 w-full border-dashed py-3 transition-all"
         >
           <Plus className="mr-2 h-4 w-4" />
           Add Line Item

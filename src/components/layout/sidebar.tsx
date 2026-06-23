@@ -6,7 +6,7 @@ import { authClient } from "~/lib/auth-client";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
 import { LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { navigationConfig } from "~/lib/navigation";
+import { navigationConfig, isNavLinkActive } from "~/lib/navigation";
 import { useSidebar } from "./sidebar-provider";
 import { cn } from "~/lib/utils";
 import { Logo } from "~/components/branding/logo";
@@ -83,7 +83,7 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
                 <div className="flex flex-col gap-1">
                   {section.links.map((link) => {
                     const Icon = link.icon;
-                    const isActive = pathname === link.href;
+                    const isActive = isNavLinkActive(pathname, link.href);
 
                     if (collapsed) {
                       return (

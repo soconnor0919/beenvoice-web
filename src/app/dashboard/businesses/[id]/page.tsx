@@ -50,7 +50,7 @@ export default async function BusinessDetailPage({
         variant="gradient"
       >
         <Button asChild variant="outline" className="shadow-sm">
-          <Link href="/dashboard/businesses">
+          <Link href="/dashboard/entities?tab=businesses">
             <ArrowLeft className="mr-2 h-4 w-4" />
             <span>Back to Businesses</span>
           </Link>

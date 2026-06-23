@@ -17,7 +17,7 @@ export default async function TimeClockPage({
   }
 
   return (
-    <div className="page-enter mx-auto max-w-3xl space-y-6">
+    <div className="page-enter space-y-6">
       <DashboardPageHeader
         title="Time clock"
         description="Track billable hours and save them directly to an invoice"

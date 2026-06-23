@@ -1,3 +1,29 @@
+export const DEFAULT_CLOCK_DESCRIPTION = "Professional services";
+
+export function resolveEffectiveHourlyRate(
+  enteredRate: number,
+  client?: { defaultHourlyRate?: number | null } | null,
+): number {
+  if (Number.isFinite(enteredRate) && enteredRate > 0) return enteredRate;
+  const clientRate = client?.defaultHourlyRate ?? 0;
+  if (Number.isFinite(clientRate) && clientRate > 0) return clientRate;
+  return 0;
+}
+
+export function startedAtFromMinutesAgo(minutes: number): Date {
+  return new Date(Date.now() - minutes * 60 * 1000);
+}
+
+export function resolveClockDescription(
+  title: string,
+  existingDescription?: string | null,
+): string {
+  const trimmed = title.trim();
+  if (trimmed) return trimmed;
+  if (existingDescription?.trim()) return existingDescription.trim();
+  return DEFAULT_CLOCK_DESCRIPTION;
+}
+
 export type ClockOutOutcome =
   | "linked_to_invoice"
   | "saved_no_invoice"
