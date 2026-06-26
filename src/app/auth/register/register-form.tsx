@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Lock, Mail, User } from "lucide-react";
+import { ArrowRight, Lock, Mail, User, UserX } from "lucide-react";
 import {
   AuthCard,
   AuthCardHeader,
@@ -22,7 +22,11 @@ function formatAuthError(message: string | undefined, fallback: string): string 
   return message;
 }
 
-export function RegisterForm() {
+interface RegisterFormProps {
+  signupsDisabled?: boolean;
+}
+
+export function RegisterForm({ signupsDisabled = false }: RegisterFormProps) {
   const router = useRouter();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -90,6 +94,35 @@ export function RegisterForm() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (signupsDisabled) {
+    return (
+      <AuthPageShell>
+        <AuthCard>
+          <AuthCardHeader
+            title="Registration closed"
+            description="New account sign-ups are not available right now"
+          />
+
+          <div className="bg-muted/50 text-muted-foreground mb-6 flex gap-3 rounded-xl border px-4 py-3 text-sm">
+            <UserX className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              This workspace is not accepting new registrations. If you already
+              have an account, sign in below. Contact your administrator if you
+              need access.
+            </p>
+          </div>
+
+          <Button asChild className="h-11 w-full">
+            <Link href="/auth/signin">
+              Sign in to your account
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </AuthCard>
+      </AuthPageShell>
+    );
   }
 
   return (

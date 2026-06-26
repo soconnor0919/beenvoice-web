@@ -1,3 +1,9 @@
+# Production stack (app + Postgres). Local dev Postgres-only: docker-compose.dev.yml
+#
+# After git pull, rebuild before starting — a plain `docker compose up -d` reuses
+# the existing local image and will NOT include new code. Use:
+#   ./scripts/docker-deploy.sh
+#   docker compose up -d --build
 services:
   app:
     build:
@@ -5,7 +11,9 @@ services:
       args:
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
         BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
-    image: beenvoice:local
+    # Fixed default tag (beenvoice:local) is reused until you --build. docker-deploy.sh
+    # sets BEENVOICE_IMAGE=beenvoice:<git-sha> so each deploy gets a fresh tag.
+    image: ${BEENVOICE_IMAGE:-beenvoice:local}
     environment:
       NODE_ENV: production
       AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
@@ -18,7 +26,7 @@ services:
       NEXT_PUBLIC_UMAMI_WEBSITE_ID: ${NEXT_PUBLIC_UMAMI_WEBSITE_ID:-}
       NEXT_PUBLIC_UMAMI_SCRIPT_URL: ${NEXT_PUBLIC_UMAMI_SCRIPT_URL:-https://analytics.umami.is/script.js}
       NEXT_PUBLIC_AUTHENTIK_ENABLED: ${NEXT_PUBLIC_AUTHENTIK_ENABLED:-false}
-      DISABLE_SIGNUPS: ${DISABLE_SIGNUPS:-false}
+      DISABLE_SIGNUPS: ${DISABLE_SIGNUPS:-true}
       AUTHENTIK_ISSUER: ${AUTHENTIK_ISSUER:-}
       AUTHENTIK_CLIENT_ID: ${AUTHENTIK_CLIENT_ID:-}
       AUTHENTIK_CLIENT_SECRET: ${AUTHENTIK_CLIENT_SECRET:-}

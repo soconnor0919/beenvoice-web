@@ -132,10 +132,12 @@ docker compose build --no-cache app
 ### 2. First start (or after code changes)
 
 ```bash
-docker compose up -d --build
+./scripts/docker-deploy.sh
+# or: bun run docker:deploy
+# or: docker compose up -d --build
 ```
 
-`--build` is important. A plain `docker compose up -d` reuses the existing image and **does not** pick up new code from `git pull`.
+`--build` is required after code changes. A plain `docker compose up -d` reuses the existing `beenvoice:local` image and **does not** pick up new code from `git pull`. The deploy script tags the image with the current git SHA (`beenvoice:<sha>`) so each deploy gets a distinct image.
 
 App listens on `${WEB_PORT:-${PORT:-3000}}` on the host (container port is always 3000). Postgres stays on the internal compose network.
 
@@ -143,15 +145,18 @@ App listens on `${WEB_PORT:-${PORT:-3000}}` on the host (container port is alway
 
 ```bash
 git pull
-docker compose up -d --build   # rebuild image, restart app, run any new migrations
+./scripts/docker-deploy.sh       # recommended: rebuild + tag with git SHA + restart
+# or: docker compose up -d --build
 ```
 
 | Command | New code? | Migrations run? |
 |---------|-----------|-----------------|
 | `git pull` only | No | No |
-| `docker compose up -d` (no `--build`) | No — old image | Only if the app container restarts (same image) |
-| `docker compose up -d --build` | Yes | Yes — on app container start |
+| `docker compose up -d` (no `--build`) | No — reuses `beenvoice:local` | Only if the app container restarts (same image) |
+| `./scripts/docker-deploy.sh` or `docker compose up -d --build` | Yes | Yes — on app container start |
 | `docker compose restart app` | No | Yes — migrate runs again (no-op if up to date) |
+
+Prune old app images occasionally: `docker image prune -f` (or remove specific `beenvoice:*` tags).
 
 To verify migration files match the journal before deploy: `bun run db:verify-journal`.
 
@@ -213,12 +218,13 @@ bun run lint:fix
 bun run format:write
 bun run typecheck
 
-# Docker helpers (Postgres only — uses Colima on macOS)
-bun run docker:up        # colima start + docker-compose.dev.yml up -d
+# Docker helpers
+bun run docker:up        # dev Postgres only (Colima + docker-compose.dev.yml)
 bun run docker:down      # stop dev Postgres + colima
+bun run docker:deploy    # production: rebuild app image + docker-compose.yml up -d
 ```
 
-Full-stack deploy uses `docker compose up` (see [Docker deployment](#docker-deployment-app--database)), not `bun run docker:up`.
+Full-stack deploy uses `bun run docker:deploy` or `./scripts/docker-deploy.sh` (see [Docker deployment](#docker-deployment-app--database)), not `bun run docker:up`.
 
 ## API surface
 

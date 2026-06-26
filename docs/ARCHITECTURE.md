@@ -190,6 +190,8 @@ App image built from `Dockerfile`. Container `CMD`: `bun migrate.ts && bun run s
 
 Set `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` to the public hostname before deploy. Rebuild the image when changing `NEXT_PUBLIC_*` build-time vars.
 
+**Deploy / update:** `git pull && ./scripts/docker-deploy.sh` (or `docker compose up -d --build`). Plain `docker compose up -d` reuses the local `beenvoice:local` image and does not include pulled code. The deploy script tags images as `beenvoice:<git-sha>`.
+
 ## Scripts
 
 ```bash

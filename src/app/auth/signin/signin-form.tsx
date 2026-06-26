@@ -26,7 +26,6 @@ export function SignInForm({ allowRegistration }: SignInFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
-  const signupDisabled = searchParams.get("signup") === "disabled";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -74,7 +73,7 @@ export function SignInForm({ allowRegistration }: SignInFormProps) {
           description="Sign in to your workspace"
         />
 
-        {signupDisabled && (
+        {!allowRegistration && (
           <p className="bg-muted/50 text-muted-foreground mb-5 rounded-xl border px-3 py-2.5 text-sm">
             New account registration is currently disabled.
           </p>
@@ -155,7 +154,7 @@ export function SignInForm({ allowRegistration }: SignInFormProps) {
           </Button>
         </form>
 
-        {allowRegistration && !signupDisabled && (
+        {allowRegistration && (
           <p className="text-muted-foreground mt-6 text-center text-sm">
             Don&apos;t have an account?{" "}
             <Link

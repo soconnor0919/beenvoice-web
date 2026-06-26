@@ -1,16 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { envBoolean } from "~/lib/env-boolean";
 import { isPublicRoute } from "~/lib/public-routes";
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  if (pathname === "/auth/register" && envBoolean(process.env.DISABLE_SIGNUPS)) {
-    const signInUrl = new URL("/auth/signin", request.url);
-    signInUrl.searchParams.set("signup", "disabled");
-    return NextResponse.redirect(signInUrl);
-  }
 
   // Define API routes that should be handled separately
   const apiRoutes = ["/api/auth", "/api/trpc", "/api/mcp", "/api/i"];

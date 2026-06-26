@@ -33,7 +33,7 @@ export const env = createEnv({
       .enum(["development", "test", "production"])
       .default("development"),
     DB_DISABLE_SSL: optionalEnvBoolean(),
-    DISABLE_SIGNUPS: optionalEnvBoolean(),
+    DISABLE_SIGNUPS: optionalEnvBoolean().default(true),
     CRON_SECRET: z.string().optional(),
     // SSO / Authentik (optional)
     AUTHENTIK_ISSUER: z.string().url().optional(),
