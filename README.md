@@ -94,6 +94,8 @@ The production compose file runs the Next.js app and PostgreSQL.
 
 **Container startup** runs `bun migrate.ts && bun run start` (see `Dockerfile`). Drizzle only applies **pending** migrations — safe to run on every restart; already-applied migrations are skipped.
 
+The Docker **build** uses a low-memory profile (React Compiler off, webpack memory optimizations, 2GB Node heap cap). Give Docker/Colima at least **3–4GB RAM** for builds. If it still OOMs, raise VM memory (`colima start --memory 6`) — avoid `--no-cache` unless debugging.
+
 ### 1. Configure
 
 ```bash

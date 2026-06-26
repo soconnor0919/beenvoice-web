@@ -5,6 +5,8 @@ node_modules
 Dockerfile*
 docker-compose*
 README.md
+docs
+AGENTS.md
 *.log
 .DS_Store
 .env*
