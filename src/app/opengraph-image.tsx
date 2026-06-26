@@ -9,20 +9,6 @@ export const contentType = "image/png";
 export default async function Image() {
   const [logoPrefix, logoSuffix] = splitLogoText(brand.logoText);
 
-  const geistMono = await fetch(
-    new URL(
-      "../../public/fonts/geist/mono/GeistMono-VariableFont_wght.ttf",
-      import.meta.url,
-    ),
-  ).then((res) => res.arrayBuffer());
-
-  const playfair = await fetch(
-    new URL(
-      "../../node_modules/@fontsource-variable/playfair-display/files/playfair-display-latin-wght-normal.woff2",
-      import.meta.url,
-    ),
-  ).then((res) => res.arrayBuffer());
-
   return new ImageResponse(
     (
       <div
@@ -70,7 +56,6 @@ export default async function Image() {
             style={{
               display: "flex",
               alignItems: "center",
-              fontFamily: "Geist Mono",
               fontSize: 72,
               fontWeight: 700,
               letterSpacing: "-0.02em",
@@ -84,7 +69,6 @@ export default async function Image() {
           <div
             style={{
               marginTop: 32,
-              fontFamily: "Playfair Display",
               fontSize: 40,
               fontWeight: 600,
               color: "#09090b",
@@ -97,7 +81,6 @@ export default async function Image() {
           <div
             style={{
               marginTop: 16,
-              fontFamily: "Geist Mono",
               fontSize: 22,
               fontWeight: 400,
               color: "#71717a",
@@ -113,20 +96,6 @@ export default async function Image() {
     ),
     {
       ...size,
-      fonts: [
-        {
-          name: "Geist Mono",
-          data: geistMono,
-          style: "normal",
-          weight: 700,
-        },
-        {
-          name: "Playfair Display",
-          data: playfair,
-          style: "normal",
-          weight: 600,
-        },
-      ],
     },
   );
 }
