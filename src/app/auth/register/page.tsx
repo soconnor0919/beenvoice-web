@@ -40,22 +40,44 @@ function RegisterForm() {
 
     setLoading(true);
 
-    const { error } = await authClient.signUp.email({
-      email: trimmedEmail,
-      password,
-      name: `${trimmedFirstName} ${trimmedLastName}`,
-    });
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: trimmedFirstName,
+          lastName: trimmedLastName,
+          email: trimmedEmail,
+          password,
+        }),
+      });
 
-    setLoading(false);
+      const data = (await res.json()) as { error?: string };
 
-    if (error) {
-      toast.error(error.message ?? "Registration failed");
-      return;
+      if (!res.ok) {
+        toast.error(data.error ?? "Registration failed");
+        return;
+      }
+
+      const { error: signInError } = await authClient.signIn.email({
+        email: trimmedEmail,
+        password,
+      });
+
+      if (signInError) {
+        toast.success("Account created! Please sign in.");
+        router.push("/auth/signin");
+        return;
+      }
+
+      toast.success("Account created successfully!");
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      toast.error("Registration failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    toast.success("Account created successfully!");
-    router.push("/dashboard");
-    router.refresh();
   }
 
   return (

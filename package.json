@@ -8,6 +8,7 @@
     "check": "eslint . && tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun src/server/db/migrate.ts",
+    "db:verify-journal": "bun scripts/verify-drizzle-journal.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:clone": "./scripts/clone-local.sh",
