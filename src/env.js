@@ -1,6 +1,20 @@
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
+/** Docker/Compose pass booleans as strings; z.coerce.boolean() treats "false" as true. */
+const optionalEnvBoolean = () =>
+  z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((value) => {
+      if (value === undefined || value === "") return undefined;
+      if (typeof value === "boolean") return value;
+      const normalized = value.trim().toLowerCase();
+      if (normalized === "true" || normalized === "1") return true;
+      if (normalized === "false" || normalized === "0") return false;
+      return undefined;
+    });
+
 export const env = createEnv({
   /**
    * Specify your server-side environment variables schema here. This way you can ensure the app
@@ -18,8 +32,8 @@ export const env = createEnv({
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
-    DB_DISABLE_SSL: z.coerce.boolean().optional(),
-    DISABLE_SIGNUPS: z.coerce.boolean().optional(),
+    DB_DISABLE_SSL: optionalEnvBoolean(),
+    DISABLE_SIGNUPS: optionalEnvBoolean(),
     CRON_SECRET: z.string().optional(),
     // SSO / Authentik (optional)
     AUTHENTIK_ISSUER: z.string().url().optional(),
@@ -37,7 +51,7 @@ export const env = createEnv({
     NEXT_PUBLIC_APP_URL: z.string().url().optional(),
     NEXT_PUBLIC_UMAMI_WEBSITE_ID: z.string().optional(),
     NEXT_PUBLIC_UMAMI_SCRIPT_URL: z.string().url().optional(),
-    NEXT_PUBLIC_AUTHENTIK_ENABLED: z.coerce.boolean().optional(),
+    NEXT_PUBLIC_AUTHENTIK_ENABLED: optionalEnvBoolean(),
     NEXT_PUBLIC_BRAND_NAME: z.string().optional(),
     NEXT_PUBLIC_BRAND_TAGLINE: z.string().optional(),
     NEXT_PUBLIC_BRAND_LOGO_TEXT: z.string().optional(),

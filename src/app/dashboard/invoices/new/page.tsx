@@ -1,7 +1,13 @@
 "use client";
 
+import { Suspense } from "react";
+
 import InvoiceForm from "~/components/forms/invoice-form";
 
 export default function NewInvoicePage() {
-  return <InvoiceForm />;
+  return (
+    <Suspense fallback={null}>
+      <InvoiceForm />
+    </Suspense>
+  );
 }

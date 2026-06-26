@@ -1,6 +1,8 @@
-# beenvoice server architecture
+# beenvoice-web architecture
 
-Dense reference for the Next.js web application and API in `beenvoice/`. Package manager: **Bun**. Database: **PostgreSQL** via Drizzle ORM.
+Dense reference for the Next.js web application and API. Package manager: **Bun**. Database: **PostgreSQL** via Drizzle ORM.
+
+**Repository:** [git.soconnor.dev/soconnor/beenvoice-web](https://git.soconnor.dev/soconnor/beenvoice-web)
 
 ## Stack
 
@@ -128,8 +130,8 @@ Migrations: `bun run db:generate` → `drizzle/`; apply with `db:push` (dev) or 
 
 - `betterAuth` + `drizzleAdapter` (users, sessions, accounts, verification)
 - Plugins: `@better-auth/expo` (mobile SecureStore cookies), `nextCookies()`, optional `genericOAuth` (Authentik)
-- Email/password with bcrypt (12 rounds); `DISABLE_SIGNUPS=true` blocks registration
-- `trustedOrigins`: production URL, `beenvoice://`, `exp://` (Expo)
+- Email/password with bcrypt (12 rounds); `DISABLE_SIGNUPS=true` blocks registration (custom `/api/auth/register` and better-auth `disableSignUp`)
+- `trustedOrigins`: `BETTER_AUTH_URL`, `NEXT_PUBLIC_APP_URL`, `beenvoice://`, `exp://`, plus Authentik origin when configured
 
 **Web client** — `src/lib/auth-client.ts`: `createAuthClient` + `genericOAuthClient`.
 
@@ -173,7 +175,7 @@ Validated in `src/env.js`. See `.env.example`.
 | `DB_DISABLE_SSL` | local | `true` for Docker dev DB |
 | `RESEND_API_KEY`, `RESEND_DOMAIN` | optional | Email; blank disables send |
 | `AUTHENTIK_*` | optional | OIDC SSO |
-| `DISABLE_SIGNUPS` | optional | `true` blocks registration |
+| `DISABLE_SIGNUPS` | optional | `true` blocks registration; use string `true`/`false` (parsed in `src/env.js`) |
 | `CRON_SECRET` | cron route | Protects `/api/cron/generate-recurring` |
 | `NEXT_PUBLIC_BRAND_*` | optional | Build-time white-label defaults |
 
@@ -181,10 +183,12 @@ Validated in `src/env.js`. See `.env.example`.
 
 | File | Use |
 |------|-----|
-| `docker-compose.yml` | Production: `app` + `db` (Postgres internal) |
-| `docker-compose.dev.yml` | Dev: Postgres only, port `${POSTGRES_PORT:-5432}` |
+| `docker-compose.yml` | Deploy: `app` + `db` (Postgres internal); copy `.env.example` → `.env` |
+| `docker-compose.dev.yml` | Local dev: Postgres only, port `${POSTGRES_PORT:-5432}` |
 
-App image built from `Dockerfile`; runs `next start` on port 3000.
+App image built from `Dockerfile`. Container `CMD`: `bun migrate.ts && bun run start` (migrations then `next start` on port 3000).
+
+Set `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` to the public hostname before deploy. Rebuild the image when changing `NEXT_PUBLIC_*` build-time vars.
 
 ## Scripts
 

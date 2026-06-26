@@ -70,6 +70,10 @@ export const emailRouter = createTRPCRouter({
         throw new Error("Client has no email address");
       }
 
+      if (!invoice.items.length) {
+        throw new Error("Add at least one line item before sending this invoice");
+      }
+
       // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(invoice.client.email)) {

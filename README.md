@@ -1,366 +1,219 @@
 ![beenvoice Logo](public/beenvoice-logo.png)
 
-# beenvoice — Invoicing Made Simple
+# beenvoice-web
 
-Modern invoicing for freelancers and small businesses: clients, businesses, invoices, time tracking, expenses, recurring billing, PDF/email delivery, and optional SSO.
+Web application and API for **beenvoice** — invoicing for freelancers and small businesses. Includes the Next.js dashboard, tRPC API, better-auth, PostgreSQL persistence, PDF/email delivery, time tracking, and an MCP automation endpoint.
 
-**Architecture (dense):** [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)  
-**Mobile companion:** [../beenvoice-app/README.md](../beenvoice-app/README.md)
+**Repository:** [git.soconnor.dev/soconnor/beenvoice-web](https://git.soconnor.dev/soconnor/beenvoice-web)  
+**Architecture:** [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)  
+**Mobile companion:** [beenvoice-app](https://git.soconnor.dev/soconnor/beenvoice-app) (separate repo; often checked out beside this one in a workspace)
 
-## Stack at a glance
+## Stack
 
-| Layer | Tech |
-|-------|------|
+| Layer | Technology |
+|-------|------------|
 | App | Next.js 16 App Router, React 19 |
 | API | tRPC 11 + SuperJSON |
-| DB | PostgreSQL, Drizzle ORM |
-| Auth | better-auth (email/password, Authentik OIDC, Expo mobile) |
-| UI | shadcn/ui, Tailwind v4 |
-| Email / PDF | Resend, @react-pdf/renderer |
-| Package manager | Bun |
+| Database | PostgreSQL 17, Drizzle ORM |
+| Auth | better-auth (email/password, optional Authentik OIDC, Expo mobile) |
+| UI | shadcn/ui, Tailwind CSS v4 |
+| Email / PDF | Resend, `@react-pdf/renderer` |
+| Runtime | Bun |
 
 ## Features
 
-- **🔐 Authentication** — better-auth: email/password, password reset, optional Authentik OIDC, Expo mobile sessions
-- **⏱ Time clock** — running timer, one per user; clock-out can append invoice line items
-- **🤖 MCP API** — `/api/mcp` for automation via API keys (`bv_…`)
-- **👥 Client Management** - Create, edit, and manage client information
-- **🏢 Business Profiles** - Manage your business details, logo, and email settings
-- **📄 Professional Invoices** - Generate detailed invoices with line items
-- **📅 Timesheet View** - Calendar-based time entry with month and week views
-- **📧 Email Delivery** - Send invoices via email using Resend
-- **📥 PDF Export** - Download invoices as professional PDFs
-- **📊 CSV Import** - Bulk import invoice data from CSV files
-- **💰 Flexible Pricing** - Set custom rates and calculate totals automatically
-- **📱 Responsive Design** - Works seamlessly on desktop, tablet, and mobile
-- **🎨 Modern UI** - Clean, professional interface built with shadcn/ui
-- **⚡ Type-Safe** - Full TypeScript support with tRPC for API calls
-- **💾 PostgreSQL Database** - Robust relational database with Drizzle ORM
+- Clients, businesses, invoices (line items, tax, status workflow)
+- Time clock with one running timer per user; clock-out can append invoice lines
+- Expenses, payments, recurring invoices, invoice templates
+- PDF export and email delivery (Resend)
+- Public invoice links (`/i/[token]`)
+- CSV import, reports, platform branding / admin settings
+- MCP API (`/api/mcp`) for automation via API keys (`bv_…`)
+- Optional Authentik OIDC SSO
 
-## 🚀 Tech Stack
+## Prerequisites
 
-- **Frontend**: Next.js 16 with App Router
-- **Backend**: tRPC for type-safe API calls
-- **Database**: Drizzle ORM with PostgreSQL
-- **Authentication**: better-auth with email/password and Authentik OIDC SSO
-- **UI Components**: shadcn/ui with Tailwind CSS v4
-- **Email**: Resend for transactional email delivery
-- **PDF**: @react-pdf/renderer for invoice PDF generation
-- **Package Manager**: Bun
-
-## 📦 Installation
-
-### Prerequisites
-
-- Node.js 18+ or Bun
-- Docker & Docker Compose (for local PostgreSQL)
+- [Bun](https://bun.sh) 1.x
+- Docker & Docker Compose (for PostgreSQL locally or full-stack deploy)
 - Git
 
-### Quick Start
+## Local development
 
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/yourusername/beenvoice.git
-   cd beenvoice
-   ```
-
-2. **Install dependencies**
-
-   ```bash
-   bun install
-   ```
-
-3. **Set up environment variables**
-
-   ```bash
-   cp .env.example .env.local
-   ```
-
-   Edit `.env.local` and add your configuration:
-
-   ```env
-   # Database
-   DATABASE_URL="postgresql://postgres:password@localhost:5432/beenvoice"
-   DB_DISABLE_SSL="true"
-
-   # Authentication
-   AUTH_SECRET="your-secret-key-here"
-   BETTER_AUTH_URL="http://localhost:3000"
-
-   # Application
-   NEXT_PUBLIC_APP_URL="http://localhost:3000"
-   NODE_ENV="development"
-
-   # Email (optional for local dev)
-   RESEND_API_KEY="your-resend-api-key"
-   RESEND_DOMAIN="yourdomain.com"
-   ```
-
-4. **Start the development database**
-
-   ```bash
-   docker compose -f docker-compose.dev.yml up -d db
-   ```
-
-5. **Push the database schema**
-
-   ```bash
-   bun run db:push
-   ```
-
-6. **Start the development server**
-
-   ```bash
-   bun run dev
-   ```
-
-7. **Open your browser**
-   Navigate to [http://localhost:3000](http://localhost:3000)
-
-## 🏗️ Project structure
-
-See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for routers, schema, auth, and MCP.
-
-```
-beenvoice/
-├── src/app/           # Pages + /api (auth, trpc, mcp, cron, public PDF)
-├── src/server/api/    # tRPC routers
-├── src/server/db/     # Drizzle schema + pool
-├── src/components/    # UI + domain components
-├── src/lib/           # auth, PDF, email, branding
-├── drizzle/           # SQL migrations
-└── docs/              # Architecture + UI guides
-```
-
-## 🎯 Usage
-
-### Getting Started
-
-1. **Register an Account**
-   - Visit the sign-up page
-   - Enter your name, email, and password
-
-2. **Set Up Your Business**
-   - Navigate to Business Settings
-   - Add your business name, contact info, and logo
-   - Configure email settings for invoice delivery (Resend API key + domain)
-
-3. **Add Your First Client**
-   - Navigate to the Clients page
-   - Click "Add New Client"
-   - Fill in client details (name, email, phone, address)
-
-4. **Create an Invoice**
-   - Go to the Invoices page
-   - Click "Create New Invoice"
-   - Select a client and optionally a business profile
-   - Add line items with descriptions, dates, hours, and rates
-   - Use the Timesheet tab for calendar-based time entry
-   - Save and send or download as PDF
-
-### Features Overview
-
-#### Client Management
-
-- Create and edit client profiles
-- Store contact information and addresses
-- Set default hourly rates per client
-- Search and filter client list
-
-#### Invoice Creation
-
-- Select from existing clients and business profiles
-- Add multiple line items with drag-and-drop reordering
-- Set custom rates per item
-- Automatic total calculations with configurable tax rate
-- Timesheet calendar view for date-based time tracking
-- Professional invoice formatting
-
-#### Invoice Delivery
-
-- Send invoices via email directly from the app
-- Rich text email composer with preview
-- Resend and re-deliver sent invoices
-- Track invoice status: Draft → Sent → Paid (+ Overdue)
-
-#### User Interface
-
-- Clean, modern design
-- Fully responsive — desktop, tablet, and mobile
-- Intuitive navigation with breadcrumbs
-- Toast notifications for feedback
-- Dark mode support
-
-## 🔧 Development
-
-### Available Scripts
+### 1. Clone and install
 
 ```bash
-# Development
-bun run dev          # Start development server (Turbo)
-bun run build        # Build for production
-bun run start        # Start production server
-
-# Database
-bun run db:push      # Push schema changes to database
-bun run db:migrate   # Run migrations
-bun run db:studio    # Open Drizzle Studio
-bun run db:generate  # Generate new migration
-
-# Docker
-bun run docker:up    # Start deployment compose stack
-bun run docker:dev:up # Start development compose stack with exposed PostgreSQL
-bun run docker:down  # Stop Docker services
-
-# Code Quality
-bun run lint         # Run ESLint
-bun run lint:fix     # Fix ESLint issues
-bun run format:write # Format code with Prettier
-bun run typecheck    # Run TypeScript type checking
+git clone https://git.soconnor.dev/soconnor/beenvoice-web.git
+cd beenvoice-web
+bun install
 ```
 
-### Docker Compose
-
-Use the base compose file for deployment. It keeps PostgreSQL internal to the
-compose network:
+### 2. Environment
 
 ```bash
-docker compose up -d
+cp .env.example .env.local
 ```
 
-For local development, use the dev compose file to expose PostgreSQL on
-`${POSTGRES_PORT:-5432}`:
+Edit `.env.local` for local dev. Minimum:
+
+```env
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
+DB_DISABLE_SSL=true
+AUTH_SECRET=your-dev-secret          # openssl rand -base64 32
+BETTER_AUTH_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+Email and SSO are optional for local work — leave `RESEND_*` and `AUTHENTIK_*` blank unless you need them.
+
+### 3. Database
+
+Start Postgres (dev compose exposes port 5432):
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-Set `DISABLE_SIGNUPS=true` to block new email/password account registration.
+Apply schema (pick one):
 
-### Database Schema
-
-The application uses the following core tables:
-
-- **users** - User accounts and authentication
-- **sessions** - Active user sessions
-- **clients** - Client information and contact details
-- **businesses** - Business profiles with email/logo settings
-- **invoices** - Invoice headers with client and business relationships
-- **invoice_items** - Individual line items with pricing and position ordering
-
-### API surface
-
-- **tRPC** — `/api/trpc` — primary API for web and mobile (session cookies)
-- **MCP** — `/api/mcp` — JSON-RPC tools for integrations (API key only)
-- **REST auth** — `/api/auth/register`, forgot/reset password (mobile + custom flows)
-- **Public** — `/i/[token]`, `/api/i/[token]/pdf`
-
-All business logic lives in `src/server/api/routers/`. Input validation via Zod.
-
-## 🎨 Customization
-
-### Styling
-
-The app uses Tailwind CSS v4 with a custom design system:
-
-- **Primary Color**: Green (#16a34a)
-- **Font**: Geist for professional typography
-- **Components**: shadcn/ui component library
-- **Spacing**: 4px grid system
-
-### Branding
-
-Update the logo and colors in:
-
-- `src/components/logo.tsx` - Main logo component
-- `src/styles/globals.css` - Color variables
-- `src/app/layout.tsx` - Font configuration
-
-## 🚀 Deployment
-
-You can deploy this application to any platform that supports Next.js and PostgreSQL (Docker, Coolify, Railway, etc.).
-
-1. **Build the application:**
-
-   ```bash
-   bun run build
-   ```
-
-2. **Set up production environment variables** (see `.env.local` example above, adjusting URLs and secrets for production)
-
-3. **Run database migrations:**
-
-   ```bash
-   bun run db:push
-   ```
-
-4. **Start the server:**
-   ```bash
-   bun start
-   ```
-
-### Environment Variables
-
-Required for production:
-
-```env
-DATABASE_URL="postgresql://user:password@host:5432/dbname"
-AUTH_SECRET="your-long-random-secret"
-BETTER_AUTH_URL="https://your-domain.com"
-NEXT_PUBLIC_APP_URL="https://your-domain.com"
-NODE_ENV="production"
-
-# Email (required for invoice sending)
-RESEND_API_KEY="re_xxxxxxxxxxxx"
-RESEND_DOMAIN="yourdomain.com"
-
-# Optional: Authentik SSO
-AUTHENTIK_ISSUER="https://your-authentik-instance/application/o/beenvoice/"
-AUTHENTIK_CLIENT_ID="your-client-id"
-AUTHENTIK_CLIENT_SECRET="your-client-secret"
+```bash
+bun run db:push      # fast iteration during development
+# bun run db:migrate # same migrations the Docker image runs in production
 ```
 
-### Other Platforms
+### 4. Run
 
-The app can be deployed to any platform that supports Next.js:
+```bash
+bun run dev
+```
 
-- **Coolify**: Deploy with Docker Compose support
-- **Railway**: Connect your GitHub repository (includes managed PostgreSQL)
-- **DigitalOcean App Platform**: Deploy with automatic scaling
+Open [http://localhost:3000](http://localhost:3000), register at `/auth/register`, then sign in.
 
-## 🤝 Contributing
+## Docker deployment (app + database)
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+The production compose file runs the Next.js app and PostgreSQL. Migrations run automatically on container start (`bun migrate.ts` in the image `CMD`).
 
-### Development Guidelines
+### 1. Configure
 
-- Follow TypeScript best practices
-- Use shadcn/ui components for consistency
-- Implement proper error handling
-- Follow the existing code style (Prettier + ESLint configs provided)
+```bash
+cp .env.example .env
+```
 
-## 📄 License
+Set at least:
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```env
+AUTH_SECRET=<openssl rand -base64 32>
+BETTER_AUTH_URL=https://your-public-hostname
+NEXT_PUBLIC_APP_URL=https://your-public-hostname
+```
 
-## 🙏 Acknowledgments
+`BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` must match the URL users actually use in the browser. If they point at `localhost` but you access the app via another hostname, auth (sign-in / sign-up) will fail.
 
-- [T3 Stack](https://create.t3.gg/) for the excellent development stack
-- [shadcn/ui](https://ui.shadcn.com/) for beautiful UI components
-- [better-auth](https://www.better-auth.com/) for modern authentication
-- [Drizzle ORM](https://orm.drizzle.team/) for database management
-- [Resend](https://resend.com/) for reliable email delivery
+`NEXT_PUBLIC_*` values are embedded at **image build** time. Rebuild after changing white-label or Authentik client flags:
 
-## 📞 Support
+```bash
+docker compose build --no-cache app
+```
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/beenvoice/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/beenvoice/discussions)
+### 2. Start
 
----
+```bash
+docker compose up -d --build
+```
 
-Built for freelancers and small businesses who deserve better invoicing tools.
+App listens on `${WEB_PORT:-3000}`. Postgres stays on the internal compose network.
+
+### 3. Sign-ups
+
+Registration is **enabled** by default. To block new email/password accounts:
+
+```env
+DISABLE_SIGNUPS=true
+```
+
+Use the literal strings `true` or `false` (or omit the variable). Do not rely on bare boolean coercion from shell/compose — the app parses these explicitly.
+
+### 4. Optional services
+
+| Variable | Purpose |
+|----------|---------|
+| `RESEND_API_KEY`, `RESEND_DOMAIN` | Invoice and password-reset email |
+| `AUTHENTIK_ISSUER`, `AUTHENTIK_CLIENT_ID`, `AUTHENTIK_CLIENT_SECRET` | OIDC SSO (also set `NEXT_PUBLIC_AUTHENTIK_ENABLED=true` and rebuild) |
+| `CRON_SECRET` | Protects `/api/cron/generate-recurring` |
+| `DISABLE_SIGNUPS=true` | Block new registrations |
+
+## Project structure
+
+```
+beenvoice-web/
+├── src/app/              # Routes (dashboard, auth, /api/*)
+├── src/server/api/       # tRPC routers
+├── src/server/db/        # Drizzle schema, pool, migrate.ts
+├── src/components/       # UI (ui/, forms/, layout/, branding/)
+├── src/lib/              # auth, PDF, email, branding helpers
+├── drizzle/              # SQL migrations
+├── Dockerfile            # Production image (migrate + next start)
+├── docker-compose.yml    # App + Postgres (deploy)
+├── docker-compose.dev.yml # Postgres only (local dev)
+└── docs/                 # Architecture and UI guides
+```
+
+See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for routers, schema, auth flows, and MCP.
+
+## Scripts
+
+```bash
+# App
+bun run dev              # next dev --turbo
+bun run build            # production build
+bun run start            # next start
+bun run check            # eslint + tsc
+
+# Database
+bun run db:push          # push schema (local dev)
+bun run db:migrate       # run drizzle migrations
+bun run db:generate      # generate new migration SQL
+bun run db:studio        # Drizzle Studio
+
+# Formatting
+bun run lint
+bun run lint:fix
+bun run format:write
+bun run typecheck
+
+# Docker helpers (Postgres only — uses Colima on macOS)
+bun run docker:up        # colima start + docker-compose.dev.yml up -d
+bun run docker:down      # stop dev Postgres + colima
+```
+
+Full-stack deploy uses `docker compose up` (see [Docker deployment](#docker-deployment-app--database)), not `bun run docker:up`.
+
+## API surface
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `/api/trpc` | Session cookie or API key | Primary API (web + mobile) |
+| `/api/auth/*` | Varies | better-auth + custom register/reset REST |
+| `/api/mcp` | API key only | JSON-RPC automation tools |
+| `/i/[token]` | Public token | Client invoice view |
+| `/api/i/[token]/pdf` | Public token | Invoice PDF download |
+
+Business logic lives in `src/server/api/routers/` with Zod validation.
+
+## Customization
+
+- **Runtime branding:** Dashboard → Administration (platform settings)
+- **Build-time defaults:** `NEXT_PUBLIC_BRAND_*` in `.env` (rebuild Docker image to apply)
+- **Theme / fonts:** `src/styles/globals.css`, appearance settings in the app
+- **Logo component:** `src/components/branding/logo.tsx`
+
+## Documentation
+
+| Doc | Contents |
+|-----|----------|
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Stack, routers, schema, auth, Docker, MCP |
+| [docs/README.md](./docs/README.md) | Index of UI and product guides |
+| [AGENTS.md](./AGENTS.md) | Conventions for AI-assisted development |
+
+## License
+
+MIT — see [LICENSE](LICENSE).

@@ -44,7 +44,7 @@ const createInvoiceSchema = z.object({
   taxRate: z.number().min(0).max(100).default(0),
   currency: z.string().length(3).default("USD"),
   sendReminderAt: z.date().nullable().optional(),
-  items: z.array(invoiceItemSchema).min(1, "At least one item is required"),
+  items: z.array(invoiceItemSchema).min(0, "Items must be an array"),
 });
 
 const updateInvoiceSchema = createInvoiceSchema.partial().extend({
@@ -81,6 +81,24 @@ async function verifyBusinessAccess(
   }
 
   return business;
+}
+
+async function resolveBusinessForInvoice(
+  ctx: InvoiceRouterContext,
+  businessId?: string | null,
+) {
+  if (businessId && businessId.trim() !== "") {
+    return verifyBusinessAccess(ctx, businessId);
+  }
+
+  const [defaultBusiness] = await ctx.db
+    .select()
+    .from(businesses)
+    .where(eq(businesses.createdById, ctx.session.user.id))
+    .orderBy(desc(businesses.isDefault), desc(businesses.createdAt))
+    .limit(1);
+
+  return defaultBusiness ?? null;
 }
 
 async function verifyClientAccess(ctx: InvoiceRouterContext, clientId: string) {
@@ -349,14 +367,16 @@ export const invoicesRouter = createTRPCRouter({
             });
           }
 
-          await tx.insert(invoiceItems).values(
-            items.map((item, idx) => ({
-              ...item,
-              invoiceId: invoice.id,
-              amount: item.hours * item.rate,
-              position: idx,
-            })),
-          );
+          if (items.length > 0) {
+            await tx.insert(invoiceItems).values(
+              items.map((item, idx) => ({
+                ...item,
+                invoiceId: invoice.id,
+                amount: item.hours * item.rate,
+                position: idx,
+              })),
+            );
+          }
 
           return invoice;
         });
@@ -475,14 +495,16 @@ export const invoicesRouter = createTRPCRouter({
 
             await tx.delete(invoiceItems).where(eq(invoiceItems.invoiceId, id));
 
-            await tx.insert(invoiceItems).values(
-              items.map((item, idx) => ({
-                ...item,
-                invoiceId: id,
-                amount: item.hours * item.rate,
-                position: idx,
-              })),
-            );
+            if (items.length > 0) {
+              await tx.insert(invoiceItems).values(
+                items.map((item, idx) => ({
+                  ...item,
+                  invoiceId: id,
+                  amount: item.hours * item.rate,
+                  position: idx,
+                })),
+              );
+            }
           } else {
             const [updatedInvoice] = await tx
               .update(invoices)
@@ -658,7 +680,7 @@ export const invoicesRouter = createTRPCRouter({
             : null;
         const [client, business, settings] = await Promise.all([
           verifyClientAccess(ctx, input.clientId),
-          verifyBusinessAccess(ctx, businessId),
+          resolveBusinessForInvoice(ctx, businessId),
           ctx.db.query.platformSettings.findFirst({
             where: eq(platformSettings.id, "global"),
           }),

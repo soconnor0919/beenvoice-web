@@ -3,7 +3,9 @@
 > **Canonical architecture reference:** [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) (stack, routers, schema, auth). This file may lag behind; prefer ARCHITECTURE.md for facts.
 
 ## Project Overview
-beenvoice is a professional invoicing application built with the T3 stack (Next.js 15, tRPC, Drizzle/LibSQL, NextAuth.js) and shadcn/ui components. This is a business-critical application where reliability, security, and professional user experience are paramount.
+beenvoice-web is the web app and API for beenvoice — Next.js 16, tRPC 11, Drizzle/PostgreSQL, better-auth, and shadcn/ui. Reliability, security, and professional UX are paramount.
+
+**Repository:** [git.soconnor.dev/soconnor/beenvoice-web](https://git.soconnor.dev/soconnor/beenvoice-web)
 
 ## Core Development Principles
 
@@ -21,10 +23,9 @@ beenvoice is a professional invoicing application built with the T3 stack (Next.
 
 ## Tech Stack Guidelines
 
-### Frontend (Next.js 15 + App Router)
+### Frontend (Next.js 16 + App Router)
 - Use App Router patterns consistently
 - Implement proper loading states and error boundaries
-- Follow Next.js 15 best practices for performance
 - Use React Server Components where appropriate
 
 ### Backend (tRPC + Drizzle)
@@ -33,17 +34,16 @@ beenvoice is a professional invoicing application built with the T3 stack (Next.
 - Implement proper transactions for multi-table operations
 - Follow existing router patterns in `src/server/api/routers/`
 
-### Database (LibSQL/SQLite)
-- Use Drizzle migrations for schema changes
-- Implement proper indexes for performance
-- Follow existing schema patterns
-- Use transactions for data consistency
+### Database (PostgreSQL)
+- Use Drizzle migrations in `drizzle/`; journal must stay in sync (`drizzle/meta/_journal.json`)
+- `db:push` for local iteration; Docker runs `migrate.ts` on startup
+- Follow existing schema patterns in `src/server/db/schema.ts`
 
-### Authentication (NextAuth.js)
-- Email/password authentication with bcrypt hashing
-- Proper session management
-- Protected routes require authentication
-- Follow NextAuth.js security best practices
+### Authentication (better-auth)
+- Email/password via better-auth + custom `/api/auth/register` REST
+- Optional Authentik OIDC (`AUTHENTIK_*`); Expo plugin for mobile
+- Route protection via `src/proxy.ts` (session cookie check) and `protectedProcedure`
+- `DISABLE_SIGNUPS=true` blocks registration; env booleans parsed in `src/env.js` (not `z.coerce.boolean`)
 
 ### Development Tools
 - Use ESLint and Prettier for code formatting
@@ -409,10 +409,9 @@ Migrations run automatically at container startup via `bun migrate.ts` (see Dock
 ## Deployment & Production
 
 ### Environment Configuration
-- Use proper environment variables
-- Secure database connections
-- Configure NextAuth.js properly
-- Set up proper logging
+- Use proper environment variables (see `.env.example` and `src/env.js`)
+- `BETTER_AUTH_URL` / `NEXT_PUBLIC_APP_URL` must match the public hostname
+- Secure database connections; `DB_DISABLE_SSL=true` for compose Postgres
 
 ### Database Management
 - Use migrations for schema changes

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Label } from "~/components/ui/label";
@@ -95,7 +95,7 @@ function plainTextToHtml(value: string) {
     .replace(/\n/g, "<br>");
 }
 
-function createDefaultInvoiceFormData(): InvoiceFormData {
+function createDefaultInvoiceFormData(blank = false): InvoiceFormData {
   return {
     invoiceNumber: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Date.now().toString().slice(-6)}`,
     invoicePrefix: "#",
@@ -109,26 +109,30 @@ function createDefaultInvoiceFormData(): InvoiceFormData {
     taxRate: 0,
     currency: "USD",
     defaultHourlyRate: null,
-    items: [
-      {
-        id: crypto.randomUUID(),
-        date: new Date(),
-        description: "",
-        hours: 1,
-        rate: 0,
-        amount: 0,
-      },
-    ],
+    items: blank
+      ? []
+      : [
+          {
+            id: crypto.randomUUID(),
+            date: new Date(),
+            description: "",
+            hours: 1,
+            rate: 0,
+            amount: 0,
+          },
+        ],
   };
 }
 
 export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isBlank = searchParams.get("blank") === "1";
   const utils = api.useUtils();
 
   // State
-  const [formData, setFormData] = useState<InvoiceFormData>(
-    createDefaultInvoiceFormData,
+  const [formData, setFormData] = useState<InvoiceFormData>(() =>
+    createDefaultInvoiceFormData(isBlank),
   );
 
   const [loading, setLoading] = useState(false);
@@ -368,13 +372,13 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
       return;
     }
 
-    // Validate Items - Check for empty description
+    const itemsToSave = formData.items.filter((item) => item.description?.trim());
+
     let invalidItemIndex = -1;
     for (let i = 0; i < formData.items.length; i++) {
-      if (
-        !formData.items[i]?.description ||
-        formData.items[i]?.description.trim() === ""
-      ) {
+      const item = formData.items[i];
+      const desc = item?.description?.trim() ?? "";
+      if (!desc && ((item?.hours ?? 0) > 0 || (item?.rate ?? 0) > 0)) {
         invalidItemIndex = i;
         break;
       }
@@ -421,7 +425,7 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
         emailMessage: formData.emailMessage,
         taxRate: formData.taxRate,
         currency: formData.currency,
-        items: formData.items.map((i) => ({
+        items: itemsToSave.map((i) => ({
           date: i.date,
           description: i.description,
           hours: i.hours,
@@ -460,8 +464,18 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
     <>
       <div className="page-enter space-y-6 pb-8">
         <PageHeader
-          title={invoiceId !== "new" ? "Edit Invoice" : "Create Invoice"}
-          description="Manage your invoice"
+          title={
+            invoiceId !== "new"
+              ? "Edit Invoice"
+              : isBlank
+                ? "Blank Invoice"
+                : "Create Invoice"
+          }
+          description={
+            isBlank
+              ? "Set up a draft to clock time into later"
+              : "Manage your invoice"
+          }
           variant="gradient"
         >
           {invoiceId !== "new" && (

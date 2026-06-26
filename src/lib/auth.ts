@@ -31,7 +31,8 @@ export const auth = betterAuth({
     },
   }),
   trustedOrigins: [
-    "https://beenvoice.soconnor.dev",
+    ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
+    ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
     "beenvoice://",
     "exp://",
     ...(authentikOrigin ? [authentikOrigin] : []),
