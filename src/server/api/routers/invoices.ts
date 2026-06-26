@@ -10,6 +10,7 @@ import {
 } from "~/server/db/schema";
 import { TRPCError } from "@trpc/server";
 import { generateInvoicePDFBlob } from "~/lib/pdf-export";
+import { defaultDueDate, generateInvoiceNumber } from "~/lib/draft-invoice";
 import { Resend } from "resend";
 import { env } from "~/env";
 import { NOREPLY_EMAIL } from "~/lib/app-email";
@@ -56,6 +57,39 @@ const updateStatusSchema = z.object({
   id: z.string(),
   status: z.enum(["draft", "sent", "paid"]),
 });
+
+const bulkImportItemSchema = z.object({
+  date: z.coerce.date().optional(),
+  description: z.string().min(1, "Description is required"),
+  quantity: z.number().min(0, "Quantity must be positive"),
+  rate: z.number().min(0, "Rate must be positive"),
+});
+
+const bulkImportClientSchema = z.object({
+  name: z.string().optional(),
+  email: z.string().email("Invalid client email").optional().or(z.literal("")),
+});
+
+const bulkImportInvoiceSchema = z.object({
+  name: z.string().min(1, "Invoice name is required"),
+  issueDate: z.coerce.date().optional(),
+  dueDate: z.coerce.date().optional(),
+  clientId: z.string().optional(),
+  client: bulkImportClientSchema.optional(),
+  items: z
+    .array(bulkImportItemSchema)
+    .min(1, "At least one line item is required"),
+  notes: z.string().optional(),
+  sourceFile: z.string().optional(),
+});
+
+const bulkImportSchema = z.object({
+  defaultClientId: z.string().optional(),
+  defaultBusinessId: z.string().optional().or(z.literal("")),
+  invoices: z.array(bulkImportInvoiceSchema).min(1, "No invoices to import"),
+});
+
+type BulkImportInvoiceInput = z.infer<typeof bulkImportInvoiceSchema>;
 
 async function verifyBusinessAccess(
   ctx: InvoiceRouterContext,
@@ -132,6 +166,44 @@ const calculateInvoiceTotal = (
   const taxAmount = (subtotal * taxRate) / 100;
   return subtotal + taxAmount;
 };
+
+type ClientRecord = typeof clients.$inferSelect;
+
+function findExistingClient(
+  userClients: ClientRecord[],
+  clientRef?: { name?: string; email?: string },
+): ClientRecord | undefined {
+  if (!clientRef) return undefined;
+
+  if (clientRef.email?.trim()) {
+    const email = clientRef.email.trim().toLowerCase();
+    const byEmail = userClients.find(
+      (c) => c.email?.toLowerCase() === email,
+    );
+    if (byEmail) return byEmail;
+  }
+
+  if (clientRef.name?.trim()) {
+    const name = clientRef.name.trim().toLowerCase();
+    const byName = userClients.find((c) => c.name.toLowerCase() === name);
+    if (byName) return byName;
+  }
+
+  return undefined;
+}
+
+function deriveIssueDateFromItems(
+  items: BulkImportInvoiceInput["items"],
+  fallback?: Date,
+): Date {
+  const itemDates = items
+    .map((i) => i.date)
+    .filter((d): d is Date => d instanceof Date && !isNaN(d.getTime()));
+  if (itemDates.length > 0) {
+    return new Date(Math.max(...itemDates.map((d) => d.getTime())));
+  }
+  return fallback ?? new Date();
+}
 
 export const invoicesRouter = createTRPCRouter({
   getAll: protectedProcedure
@@ -659,6 +731,173 @@ export const invoicesRouter = createTRPCRouter({
       await ctx.db.delete(invoices).where(inArray(invoices.id, ownedIds));
 
       return { success: true, deleted: ownedIds.length };
+    }),
+
+  bulkImport: protectedProcedure
+    .input(bulkImportSchema)
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+
+      const business = await resolveBusinessForInvoice(
+        ctx,
+        input.defaultBusinessId,
+      );
+      if (!business) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "No business found. Create a business in Settings before importing invoices.",
+        });
+      }
+
+      if (input.defaultClientId) {
+        await verifyClientAccess(ctx, input.defaultClientId);
+      }
+      if (input.defaultBusinessId && input.defaultBusinessId.trim() !== "") {
+        await verifyBusinessAccess(ctx, input.defaultBusinessId);
+      }
+
+      let invoicesCreated = 0;
+      let clientsCreated = 0;
+      const rowErrors: string[] = [];
+
+      try {
+        await ctx.db.transaction(async (tx) => {
+          const userClients = await tx
+            .select()
+            .from(clients)
+            .where(eq(clients.createdById, userId));
+
+          for (let i = 0; i < input.invoices.length; i++) {
+            const inv = input.invoices[i]!;
+            const label = inv.sourceFile ?? inv.name ?? `Invoice ${i + 1}`;
+
+            try {
+              let clientId = inv.clientId ?? input.defaultClientId;
+
+              if (!clientId) {
+                const existing = findExistingClient(userClients, inv.client);
+                if (existing) {
+                  clientId = existing.id;
+                } else if (inv.client?.name?.trim()) {
+                  const [newClient] = await tx
+                    .insert(clients)
+                    .values({
+                      name: inv.client.name.trim(),
+                      email:
+                        inv.client.email && inv.client.email.trim() !== ""
+                          ? inv.client.email.trim()
+                          : null,
+                      createdById: userId,
+                    })
+                    .returning();
+
+                  if (!newClient) {
+                    rowErrors.push(`${label}: failed to create client`);
+                    continue;
+                  }
+
+                  userClients.push(newClient);
+                  clientId = newClient.id;
+                  clientsCreated++;
+                }
+              }
+
+              if (!clientId) {
+                rowErrors.push(
+                  `${label}: no client specified (select a default client or include client details in JSON)`,
+                );
+                continue;
+              }
+
+              const clientRecord = userClients.find((c) => c.id === clientId);
+              if (!clientRecord) {
+                rowErrors.push(`${label}: client not found`);
+                continue;
+              }
+
+              const issueDate =
+                inv.issueDate ?? deriveIssueDateFromItems(inv.items);
+              const dueDate = inv.dueDate ?? defaultDueDate(issueDate);
+
+              const dbItems = inv.items.map((item) => ({
+                date: item.date ?? issueDate,
+                description: item.description,
+                hours: item.quantity,
+                rate: item.rate,
+              }));
+
+              const totalAmount = calculateInvoiceTotal(dbItems, 0);
+              const invoiceNumber =
+                inv.name.trim().slice(0, 100) || generateInvoiceNumber();
+
+              const notes =
+                inv.notes ??
+                (inv.sourceFile
+                  ? `Imported from ${inv.sourceFile}`
+                  : "Imported invoice");
+
+              const [invoice] = await tx
+                .insert(invoices)
+                .values({
+                  invoiceNumber,
+                  businessId: business.id,
+                  clientId,
+                  issueDate,
+                  dueDate,
+                  status: "draft",
+                  totalAmount,
+                  taxRate: 0,
+                  currency: "USD",
+                  notes,
+                  createdById: userId,
+                })
+                .returning();
+
+              if (!invoice) {
+                rowErrors.push(`${label}: failed to create invoice`);
+                continue;
+              }
+
+              await tx.insert(invoiceItems).values(
+                dbItems.map((item, idx) => ({
+                  ...item,
+                  invoiceId: invoice.id,
+                  amount: item.hours * item.rate,
+                  position: idx,
+                })),
+              );
+
+              invoicesCreated++;
+            } catch (err) {
+              const msg =
+                err instanceof Error ? err.message : "Unknown error";
+              rowErrors.push(`${label}: ${msg}`);
+            }
+          }
+        });
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to import invoices",
+          cause: error,
+        });
+      }
+
+      if (invoicesCreated === 0 && rowErrors.length > 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: rowErrors.join("\n"),
+        });
+      }
+
+      return {
+        success: true,
+        invoicesCreated,
+        clientsCreated,
+        errors: rowErrors,
+      };
     }),
 
   previewPdf: protectedProcedure

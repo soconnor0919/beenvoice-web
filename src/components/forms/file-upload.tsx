@@ -152,7 +152,7 @@ export function FileUpload({
       <div
         {...getRootProps()}
         className={cn(
-          "cursor-pointer border-2 border-dashed p-8 text-center transition-colors",
+          "cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors",
           "hover:border-primary/40 hover:bg-primary/10",
           isDragActive && "border-primary/40 bg-primary/10",
           isDragReject && "border-destructive/40 bg-destructive/10",

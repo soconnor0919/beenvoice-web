@@ -154,7 +154,8 @@
   [data-slot="card"],
   [data-slot="dialog-content"],
   [data-slot="alert-dialog-content"],
-  [data-slot="popover-content"] {
+  [data-slot="popover-content"],
+  [data-slot="select-content"] {
     border-radius: var(--radius-lg);
   }
 

@@ -21,6 +21,7 @@ import {
   Link as LinkIcon,
 } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "~/lib/auth-client";
 import { useAuthSession } from "~/hooks/use-auth-session";
 import * as React from "react";
@@ -89,6 +90,21 @@ import { useAppearance } from "~/components/providers/appearance-provider";
 import { brand, colorModes } from "~/lib/branding";
 import type { PdfTemplate } from "~/lib/appearance";
 import { ApiAccessSettings } from "./api-access-settings";
+import { ImportPageHeaderActions } from "./invoice-import/import-page-header-actions";
+
+const InvoiceImportPage = dynamic(
+  () =>
+    import("~/components/invoice-import-page").then(
+      (module) => module.InvoiceImportPage,
+    ),
+  {
+    loading: () => (
+      <div className="bg-muted/30 text-muted-foreground flex h-32 items-center justify-center rounded-lg border text-sm">
+        Loading import tools...
+      </div>
+    ),
+  },
+);
 
 const PdfPreviewFrame = dynamic(
   () => import("./pdf-preview-frame").then((module) => module.PdfPreviewFrame),
@@ -106,7 +122,28 @@ function isFullHexColor(value: string) {
   return /^#[0-9A-Fa-f]{6}$/.test(value);
 }
 
-export function SettingsContent() {
+const SETTINGS_TABS = ["general", "preferences", "data", "api"] as const;
+type SettingsTab = (typeof SETTINGS_TABS)[number];
+
+function isSettingsTab(value: string | null | undefined): value is SettingsTab {
+  return SETTINGS_TABS.includes(value as SettingsTab);
+}
+
+export function SettingsContent({
+  initialTab = "general",
+}: {
+  initialTab?: SettingsTab;
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const activeTab = isSettingsTab(tabParam) ? tabParam : initialTab;
+
+  const handleTabChange = (value: string) => {
+    if (!isSettingsTab(value)) return;
+    router.replace(`/dashboard/settings?tab=${value}`, { scroll: false });
+  };
+
   const { data: session } = useAuthSession();
   const [name, setName] = useState("");
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -406,7 +443,7 @@ export function SettingsContent() {
   ];
 
   return (
-    <PageTabs defaultValue="general">
+    <PageTabs value={activeTab} onValueChange={handleTabChange}>
       <PageTabsList>
         <PageTabsTrigger value="general">General</PageTabsTrigger>
         <PageTabsTrigger value="preferences">Preferences</PageTabsTrigger>
@@ -1136,6 +1173,27 @@ export function SettingsContent() {
                 </CollapsibleContent>
               </Collapsible>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Import Invoices */}
+        <Card className="bg-card border-border border">
+          <CardHeader>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1.5">
+                <CardTitle className="text-foreground flex items-center gap-2">
+                  <FileUp className="text-primary h-5 w-5" />
+                  Import Invoices
+                </CardTitle>
+                <CardDescription>
+                  Upload CSV or JSON files to create draft invoices in bulk
+                </CardDescription>
+              </div>
+              <ImportPageHeaderActions />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <InvoiceImportPage />
           </CardContent>
         </Card>
 

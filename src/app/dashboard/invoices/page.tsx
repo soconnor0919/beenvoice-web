@@ -4,7 +4,7 @@ import { api, HydrateClient } from "~/trpc/server";
 import { Button } from "~/components/ui/button";
 import { DashboardPageHeader } from "~/components/layout/page-header";
 import { DashboardPage } from "~/components/layout/dashboard-page";
-import { Plus, Upload } from "lucide-react";
+import { Plus } from "lucide-react";
 import { InvoicesDataTable } from "./_components/invoices-data-table";
 import { DataTableSkeleton } from "~/components/data/data-table";
 
@@ -22,12 +22,6 @@ export default async function InvoicesPage() {
         title="Invoices"
         description="Manage your invoices and track payments"
       >
-        <Button asChild variant="outline" className="hover-lift shadow-sm">
-          <Link href="/dashboard/invoices/import">
-            <Upload className="mr-2 h-5 w-5" />
-            <span>Import CSV</span>
-          </Link>
-        </Button>
         <Button asChild variant="default" className="hover-lift shadow-md">
           <Link href="/dashboard/invoices/new">
             <Plus className="mr-2 h-5 w-5" />

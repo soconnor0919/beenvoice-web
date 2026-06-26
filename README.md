@@ -82,13 +82,20 @@ bun run db:push      # fast iteration during development
 # bun run db:migrate # same migrations the Docker image runs in production
 ```
 
+**Demo account.** For App Store review and local testing, `bun run db:migrate` applies `0014_seed_demo_account.sql`, which creates a pre-populated user (`db:push` does not). Sign in at `/auth/login`:
+
+- Email: `demo@example.com`
+- Password: `demo123`
+
+The account includes a sample business, clients, and invoices (draft, sent, and paid).
+
 ### 4. Run
 
 ```bash
 bun run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), register at `/auth/register`, then sign in.
+Open [http://localhost:3000](http://localhost:3000), register at `/auth/register`, or sign in with the demo account above.
 
 ## Docker deployment (app + database)
 
