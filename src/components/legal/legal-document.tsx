@@ -66,7 +66,7 @@ function LegalSectionBlock({
   return (
     <section
       id={section.id}
-      className={cn("scroll-mt-24", !isLast && "border-border border-b")}
+      className={cn("scroll-mt-28", !isLast && "border-border/50 border-b")}
     >
       <div className="px-6 pt-8 pb-4 sm:px-8">
         <h2 className="text-foreground text-lg font-semibold tracking-tight sm:text-xl">
@@ -82,12 +82,20 @@ function LegalSectionBlock({
 
 export function LegalDocument({ sections }: { sections: LegalSection[] }) {
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,13rem)_minmax(0,1fr)] lg:items-start">
-      <aside className="bg-card border-border rounded-lg border p-4 lg:sticky lg:top-8">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,13rem)_minmax(0,1fr)] lg:items-start lg:gap-8">
+      <aside
+        className={cn(
+          "border-border/60 bg-card/70 rounded-2xl border p-4 backdrop-blur-sm lg:sticky lg:top-24",
+        )}
+      >
         <LegalTableOfContents sections={sections} />
       </aside>
 
-      <article className="bg-card border-border overflow-hidden rounded-lg border shadow-sm">
+      <article
+        className={cn(
+          "border-border/60 bg-card/70 overflow-hidden rounded-3xl border shadow-xl backdrop-blur-sm",
+        )}
+      >
         {sections.map((section, index) => (
           <LegalSectionBlock
             key={section.id}

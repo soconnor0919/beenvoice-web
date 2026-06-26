@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { envBoolean } from "~/lib/env-boolean";
+import { isPublicRoute } from "~/lib/public-routes";
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -11,15 +12,6 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(signInUrl);
   }
 
-  // Define public routes that don't require authentication
-  const publicRoutes = [
-    "/",
-    "/auth/signin",
-    "/auth/register",
-    "/privacy",
-    "/terms",
-  ];
-
   // Define API routes that should be handled separately
   const apiRoutes = ["/api/auth", "/api/trpc", "/api/mcp", "/api/i"];
 
@@ -29,7 +21,7 @@ export function proxy(request: NextRequest) {
   }
 
   // Allow public routes for everyone
-  if (publicRoutes.includes(pathname)) {
+  if (isPublicRoute(pathname)) {
     return NextResponse.next();
   }
 

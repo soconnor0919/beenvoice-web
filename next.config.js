@@ -16,11 +16,11 @@ const config = {
   experimental: {
     webpackMemoryOptimizations: true,
   },
-  // Skip duplicate typecheck/eslint during Docker `next build` to lower peak memory.
+  // Skip duplicate typecheck during Docker `next build` to lower peak memory.
+  // Lint separately via `bun run lint` / `bun run check`.
   ...(isDockerBuild
     ? {
         typescript: { ignoreBuildErrors: true },
-        eslint: { ignoreDuringBuilds: true },
       }
     : {}),
 };

@@ -16,8 +16,7 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { getEffectiveInvoiceStatus } from "~/lib/invoice-status";
-import { auth } from "~/lib/auth";
-import { headers } from "next/headers";
+import { getOptionalServerSessionFromHeaders } from "~/lib/auth-server";
 import { HydrateClient, api } from "~/trpc/server";
 import type { StoredInvoiceStatus } from "~/types/invoice";
 import { RevenueChart, InvoiceStatusChart, MonthlyMetricsChart } from "~/app/dashboard/_components/charts-client";
@@ -494,9 +493,7 @@ import { DashboardPageHeader } from "~/components/layout/page-header";
 // ... imports
 
 export default async function DashboardPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getOptionalServerSessionFromHeaders();
   const firstName = session?.user?.name?.split(" ")[0] ?? "User";
 
   // Fetch stats centrally

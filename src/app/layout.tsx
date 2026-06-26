@@ -3,10 +3,7 @@ import "~/styles/globals.css";
 import { type Metadata } from "next";
 import localFont from "next/font/local";
 
-import { TRPCReactProvider } from "~/trpc/react";
 import { Toaster } from "~/components/ui/sonner";
-import { AnimationPreferencesProvider } from "~/components/providers/animation-preferences-provider";
-import { AppearanceProvider } from "~/components/providers/appearance-provider";
 import {
   brand,
   defaultBodyFontPreference,
@@ -17,6 +14,7 @@ import {
 } from "~/lib/branding";
 
 import { UmamiScript } from "~/components/analytics/umami-script";
+import { BrandBackground } from "~/components/layout/brand-background";
 
 export const metadata: Metadata = {
   title: `${brand.name} - Invoicing Made Simple`,
@@ -108,20 +106,11 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-background text-foreground relative min-h-screen overflow-x-hidden font-sans antialiased">
-        <div className="brand-background pointer-events-none fixed inset-0 -z-10 flex items-center justify-center overflow-hidden">
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
-          <div className="animate-blob h-[800px] w-[800px] rounded-full bg-neutral-400/40 blur-3xl dark:bg-neutral-500/30"></div>
-        </div>
+        <BrandBackground />
 
-        <TRPCReactProvider>
-          <AppearanceProvider>
-            <AnimationPreferencesProvider>
-              <div className="relative z-10">{children}</div>
-            </AnimationPreferencesProvider>
-          </AppearanceProvider>
-          <Toaster />
-          <UmamiScript />
-        </TRPCReactProvider>
+        <div className="relative z-10">{children}</div>
+        <Toaster />
+        <UmamiScript />
       </body>
     </html>
   );

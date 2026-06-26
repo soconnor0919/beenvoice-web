@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { MarketingProviders } from "~/components/providers/marketing-providers";
 import { brand } from "~/lib/branding";
 
 export const metadata: Metadata = {
@@ -14,5 +15,5 @@ export default function LegalLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  return <MarketingProviders>{children}</MarketingProviders>;
 }

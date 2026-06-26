@@ -186,7 +186,7 @@ Validated in `src/env.js`. See `.env.example`.
 | `docker-compose.yml` | Deploy: `app` + `db` (Postgres internal); copy `.env.example` → `.env` |
 | `docker-compose.dev.yml` | Local dev: Postgres only, port `${POSTGRES_PORT:-5432}` |
 
-App image built from `Dockerfile`. Container `CMD`: `bun migrate.ts && bun run start` (migrations then `next start` on port 3000). Docker builds disable React Compiler and use `experimental.webpackMemoryOptimizations` to reduce peak RAM.
+App image built from `Dockerfile`. Container `CMD`: `bun migrate.ts && bun run start` (migrations then `next start` on port 3000). Docker builds run `next build` on Node 22 (not Bun) to avoid arm64 worker crashes; runtime stays on Bun. Docker builds disable React Compiler and use `experimental.webpackMemoryOptimizations` to reduce peak RAM.
 
 Set `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` to the public hostname before deploy. Rebuild the image when changing `NEXT_PUBLIC_*` build-time vars.
 

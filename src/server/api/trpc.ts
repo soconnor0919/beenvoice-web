@@ -12,6 +12,7 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 
 import { auth } from "~/lib/auth";
+import { hasSessionCookie } from "~/lib/auth-server";
 import { db } from "~/server/db";
 import { getBearerToken, getUserForApiKey } from "~/server/api/api-keys";
 
@@ -47,17 +48,39 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
     }
   }
 
-  const session = await auth.api.getSession({
-    headers: opts.headers,
-  });
+  if (!hasSessionCookie(opts.headers)) {
+    return {
+      db,
+      session: null,
+      authSource: "none" as const,
+      apiKeyId: null,
+      ...opts,
+    };
+  }
 
-  return {
-    db,
-    session,
-    authSource: session?.user ? ("session" as const) : ("none" as const),
-    apiKeyId: null,
-    ...opts,
-  };
+  try {
+    const session = await auth.api.getSession({
+      headers: opts.headers,
+    });
+
+    return {
+      db,
+      session,
+      authSource: session?.user ? ("session" as const) : ("none" as const),
+      apiKeyId: null,
+      ...opts,
+    };
+  } catch (error) {
+    console.error("[tRPC] Failed to resolve session:", error);
+
+    return {
+      db,
+      session: null,
+      authSource: "none" as const,
+      apiKeyId: null,
+      ...opts,
+    };
+  }
 };
 
 /**

@@ -94,7 +94,7 @@ The production compose file runs the Next.js app and PostgreSQL.
 
 **Container startup** runs `bun migrate.ts && bun run start` (see `Dockerfile`). Drizzle only applies **pending** migrations — safe to run on every restart; already-applied migrations are skipped.
 
-The Docker **build** uses a low-memory profile (React Compiler off, webpack memory optimizations, 2GB Node heap cap). Give Docker/Colima at least **3–4GB RAM** for builds. If it still OOMs, raise VM memory (`colima start --memory 6`) — avoid `--no-cache` unless debugging.
+The Docker **build** runs `next build` on **Node 22** (Bun can crash on Linux arm64 during the page-data worker phase). The **runtime** image still uses Bun for migrations and `next start`. `docker-compose.yml` does not set container memory or CPU limits — containers can use whatever the Docker host provides.
 
 ### 1. Configure
 
@@ -128,7 +128,7 @@ docker compose up -d --build
 
 `--build` is important. A plain `docker compose up -d` reuses the existing image and **does not** pick up new code from `git pull`.
 
-App listens on `${WEB_PORT:-3000}`. Postgres stays on the internal compose network.
+App listens on `${WEB_PORT:-${PORT:-3000}}` on the host (container port is always 3000). Postgres stays on the internal compose network.
 
 ### 3. Updating an existing deploy
 

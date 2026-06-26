@@ -6,7 +6,10 @@ FROM base AS install
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
-FROM base AS build
+# Next.js build must run on Node — Bun 1.3.x can SIGSEGV on Linux arm64 during
+# the "Collecting page data" worker phase (oven-sh/bun#...). Runtime stays on Bun.
+FROM node:22-bookworm-slim AS build
+WORKDIR /usr/src/app
 COPY --from=install /usr/src/app/node_modules node_modules
 COPY . .
 
@@ -15,19 +18,17 @@ ARG BETTER_AUTH_URL=http://localhost:3000
 
 # Low-memory Docker build profile:
 # - disable React Compiler (saves compile RAM; prod image still runs fine without it)
-# - skip eslint/tsc inside `next build` (run `bun run check` in CI instead)
-# - cap Node heap at 2GB (raise Docker/Colima memory if this still OOMs)
+# - skip tsc inside `next build` (run `bun run check` in CI instead)
 ENV DOCKER_BUILD=1 \
     DISABLE_REACT_COMPILER=1 \
     NODE_ENV=production \
     SKIP_ENV_VALIDATION=1 \
     NEXT_TELEMETRY_DISABLED=1 \
-    NODE_OPTIONS=--max-old-space-size=2048 \
     BETTER_AUTH_URL=${BETTER_AUTH_URL} \
     NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL} \
     AUTH_SECRET=docker-build-placeholder-secret-do-not-use \
     DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
-RUN bun run build
+RUN node ./node_modules/next/dist/bin/next build
 
 FROM base AS release
 ENV NODE_ENV=production \
