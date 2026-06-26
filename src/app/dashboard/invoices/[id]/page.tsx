@@ -24,7 +24,13 @@ import { notFound, useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { StatusBadge } from "~/components/data/status-badge";
-import { PageHeader } from "~/components/layout/page-header";
+import {
+  DashboardPage,
+  dashboardGapClass,
+  dashboardGridClass,
+} from "~/components/layout/dashboard-page";
+import { DashboardPageHeader } from "~/components/layout/page-header";
+import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -224,11 +230,10 @@ function InvoiceViewContent({ invoiceId }: { invoiceId: string }) {
   };
 
   return (
-    <div className="page-enter space-y-6 pb-24">
-      <PageHeader
+    <DashboardPage className="pb-24">
+      <DashboardPageHeader
         title="Invoice Details"
         description="View and manage invoice information"
-        variant="gradient"
       >
         <PDFDownloadButton invoiceId={invoice.id} variant="outline" className="hover-lift" />
         <Button asChild variant="default" className="hover-lift">
@@ -237,11 +242,11 @@ function InvoiceViewContent({ invoiceId }: { invoiceId: string }) {
             Edit
           </Link>
         </Button>
-      </PageHeader>
+      </DashboardPageHeader>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className={cn(dashboardGridClass, "lg:grid-cols-3")}>
         {/* Left Column */}
-        <div className="space-y-6 lg:col-span-2">
+        <div className={cn("flex flex-col lg:col-span-2", dashboardGapClass)}>
           {/* Invoice Header */}
           <Card>
             <CardContent className="p-4 sm:p-6">
@@ -531,7 +536,7 @@ function InvoiceViewContent({ invoiceId }: { invoiceId: string }) {
         </div>
 
         {/* Right Column - Actions */}
-        <div className="space-y-6">
+        <div className={cn("flex flex-col", dashboardGapClass)}>
           {storedStatus === "draft" && (
             <InvoiceTimerCard invoiceId={invoiceId} clientId={invoice.clientId} />
           )}
@@ -833,7 +838,7 @@ function InvoiceViewContent({ invoiceId }: { invoiceId: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </DashboardPage>
   );
 }
 

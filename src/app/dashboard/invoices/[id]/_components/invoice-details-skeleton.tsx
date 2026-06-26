@@ -1,25 +1,27 @@
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Separator } from "~/components/ui/separator";
 import { Skeleton } from "~/components/ui/skeleton";
-import { PageHeader } from "~/components/layout/page-header";
+import { DashboardPageHeader } from "~/components/layout/page-header";
+import {
+  DashboardPage,
+  dashboardGapClass,
+  dashboardGridClass,
+} from "~/components/layout/dashboard-page";
+import { cn } from "~/lib/utils";
 
 export function InvoiceDetailsSkeleton() {
   return (
-    <div className="space-y-6 pb-24">
-      {/* Header */}
-      <PageHeader
+    <DashboardPage className="pb-24">
+      <DashboardPageHeader
         title="Loading..."
         description="View and manage invoice information"
-        variant="gradient"
       >
         <Skeleton className="h-10 w-10 sm:w-32" />
         <Skeleton className="h-10 w-24" />
-      </PageHeader>
+      </DashboardPageHeader>
 
-      {/* Content */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Left Column */}
-        <div className="space-y-6 lg:col-span-2">
+      <div className={cn(dashboardGridClass, "lg:grid-cols-3")}>
+        <div className={cn("flex flex-col lg:col-span-2", dashboardGapClass)}>
           {/* Invoice Header Skeleton */}
           <Card>
             <CardContent className="p-4 sm:p-6">
@@ -155,7 +157,7 @@ export function InvoiceDetailsSkeleton() {
         </div>
 
         {/* Right Column - Actions */}
-        <div className="space-y-6">
+        <div className={cn("flex flex-col", dashboardGapClass)}>
           <Card className="lg:sticky lg:top-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -172,6 +174,6 @@ export function InvoiceDetailsSkeleton() {
           </Card>
         </div>
       </div>
-    </div>
+    </DashboardPage>
   );
 }

@@ -1,5 +1,6 @@
 import { HydrateClient, api } from "~/trpc/server";
 import { DashboardPageHeader } from "~/components/layout/page-header";
+import { DashboardPage } from "~/components/layout/dashboard-page";
 import { TimeClockPanel } from "~/components/time-clock/time-clock-panel";
 
 export default async function TimeClockPage({
@@ -17,7 +18,7 @@ export default async function TimeClockPage({
   }
 
   return (
-    <div className="page-enter space-y-6">
+    <DashboardPage>
       <DashboardPageHeader
         title="Time clock"
         description="Track billable hours and save them directly to an invoice"
@@ -28,6 +29,6 @@ export default async function TimeClockPage({
           defaultInvoiceId={params.invoiceId}
         />
       </HydrateClient>
-    </div>
+    </DashboardPage>
   );
 }

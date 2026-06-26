@@ -10,7 +10,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { CSVImportPage } from "~/components/csv-import-page";
-import { PageHeader } from "~/components/layout/page-header";
+import { DashboardPageHeader } from "~/components/layout/page-header";
+import { DashboardPage, dashboardGridClass } from "~/components/layout/dashboard-page";
+import { cn } from "~/lib/utils";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -19,7 +21,7 @@ import { HydrateClient } from "~/trpc/server";
 // File Upload Instructions Component
 function FormatInstructions() {
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className={cn(dashboardGridClass, "lg:grid-cols-2")}>
       {/* Required Format */}
       <Card className="bg-card border-border border">
         <CardHeader>
@@ -203,11 +205,10 @@ function FileFormatHelp() {
 
 export default async function ImportPage() {
   return (
-    <div className="space-y-8">
-      <PageHeader
+    <DashboardPage>
+      <DashboardPageHeader
         title="Import Time Entries"
         description="Upload CSV files to create invoices from your time tracking data"
-        variant="gradient"
       >
         <Link href="/dashboard/invoices">
           <Button variant="outline" size="lg">
@@ -215,7 +216,7 @@ export default async function ImportPage() {
             Back to Invoices
           </Button>
         </Link>
-      </PageHeader>
+      </DashboardPageHeader>
 
       <HydrateClient>
         {/* Main CSV Import Component */}
@@ -230,6 +231,6 @@ export default async function ImportPage() {
         {/* Important Notes */}
         <ImportantNotes />
       </HydrateClient>
-    </div>
+    </DashboardPage>
   );
 }

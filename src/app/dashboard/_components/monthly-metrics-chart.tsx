@@ -3,25 +3,25 @@
 import {
   Bar,
   BarChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { getEffectiveInvoiceStatus } from "~/lib/invoice-status";
-import type { StoredInvoiceStatus } from "~/types/invoice";
+import { ResponsiveChart } from "~/components/charts/responsive-chart";
 import { useAnimationPreferences } from "~/components/providers/animation-preferences-provider";
 
-interface Invoice {
-  id: string;
-  totalAmount: number;
-  issueDate: Date | string;
-  status: string;
-  dueDate: Date | string;
+export interface MonthlyMetricsChartDatum {
+  month: string;
+  monthLabel: string;
+  totalInvoices: number;
+  paidInvoices: number;
+  pendingInvoices: number;
+  overdueInvoices: number;
+  draftInvoices: number;
 }
 
 interface MonthlyMetricsChartProps {
-  invoices: Invoice[];
+  data: MonthlyMetricsChartDatum[];
 }
 
 function MonthlyMetricsTooltip({
@@ -31,28 +31,30 @@ function MonthlyMetricsTooltip({
 }: {
   active?: boolean;
   payload?: Array<{
-    payload: {
-      paidInvoices: number;
-      pendingInvoices: number;
-      overdueInvoices: number;
-      draftInvoices: number;
-      totalInvoices: number;
-    };
+    payload: MonthlyMetricsChartDatum;
   }>;
   label?: string;
 }) {
   if (active && payload?.length) {
-    const data = payload[0]!.payload;
+    const chartDatum = payload[0]!.payload;
     return (
       <div className="bg-card border-border rounded-lg border p-3 shadow-lg">
         <p className="font-medium">{label}</p>
         <div className="space-y-1 text-sm">
-          <p className="text-primary font-medium">Paid: {data.paidInvoices}</p>
-          <p className="text-primary/80">Pending: {data.pendingInvoices}</p>
-          <p className="text-destructive">Overdue: {data.overdueInvoices}</p>
-          <p className="text-muted-foreground">Draft: {data.draftInvoices}</p>
-          <p className="text-foreground border-t pt-1 font-medium">
-            Total: {data.totalInvoices}
+          <p className="text-primary font-medium font-mono tabular-nums">
+            Paid: {chartDatum.paidInvoices}
+          </p>
+          <p className="text-primary/80 font-mono tabular-nums">
+            Pending: {chartDatum.pendingInvoices}
+          </p>
+          <p className="text-destructive font-mono tabular-nums">
+            Overdue: {chartDatum.overdueInvoices}
+          </p>
+          <p className="text-muted-foreground font-mono tabular-nums">
+            Draft: {chartDatum.draftInvoices}
+          </p>
+          <p className="text-foreground border-t pt-1 font-medium font-mono tabular-nums">
+            Total: {chartDatum.totalInvoices}
           </p>
         </div>
       </div>
@@ -61,78 +63,14 @@ function MonthlyMetricsTooltip({
   return null;
 }
 
-export function MonthlyMetricsChart({ invoices }: MonthlyMetricsChartProps) {
-  // Process invoice data to create monthly metrics
-  const monthlyData = invoices.reduce(
-    (acc, invoice) => {
-      const date = new Date(invoice.issueDate);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const effectiveStatus = getEffectiveInvoiceStatus(
-        invoice.status as StoredInvoiceStatus,
-        invoice.dueDate,
-      );
-
-      acc[monthKey] ??= {
-        month: monthKey,
-        totalInvoices: 0,
-        paidInvoices: 0,
-        pendingInvoices: 0,
-        overdueInvoices: 0,
-        draftInvoices: 0,
-      };
-
-      acc[monthKey].totalInvoices += 1;
-
-      switch (effectiveStatus) {
-        case "paid":
-          acc[monthKey].paidInvoices += 1;
-          break;
-        case "sent":
-          acc[monthKey].pendingInvoices += 1;
-          break;
-        case "overdue":
-          acc[monthKey].overdueInvoices += 1;
-          break;
-        case "draft":
-          acc[monthKey].draftInvoices += 1;
-          break;
-      }
-
-      return acc;
-    },
-    {} as Record<
-      string,
-      {
-        month: string;
-        totalInvoices: number;
-        paidInvoices: number;
-        pendingInvoices: number;
-        overdueInvoices: number;
-        draftInvoices: number;
-      }
-    >,
-  );
-
-  // Convert to array and sort by month
-  const chartData = Object.values(monthlyData)
-    .sort((a, b) => a.month.localeCompare(b.month))
-    .slice(-6) // Show last 6 months
-    .map((item) => ({
-      ...item,
-      monthLabel: new Date(item.month + "-01").toLocaleDateString("en-US", {
-        month: "short",
-        year: "2-digit",
-      }),
-    }));
-
-  // Animation / motion preferences
+export function MonthlyMetricsChart({ data }: MonthlyMetricsChartProps) {
   const { prefersReducedMotion, animationSpeedMultiplier } =
     useAnimationPreferences();
   const barAnimationDuration = Math.round(
     500 / (animationSpeedMultiplier || 1),
   );
 
-  if (chartData.length === 0) {
+  if (data.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="text-center">
@@ -149,9 +87,8 @@ export function MonthlyMetricsChart({ invoices }: MonthlyMetricsChartProps) {
 
   return (
     <div className="space-y-4">
-      <div className="h-48 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData}>
+      <ResponsiveChart height={192} className="h-48">
+        <BarChart data={data}>
             <XAxis
               dataKey="monthLabel"
               axisLine={false}
@@ -161,7 +98,11 @@ export function MonthlyMetricsChart({ invoices }: MonthlyMetricsChartProps) {
             <YAxis
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+              tick={{
+                fontSize: 12,
+                fill: "var(--muted-foreground)",
+                fontFamily: "var(--font-mono)",
+              }}
             />
             <Tooltip content={<MonthlyMetricsTooltip />} />
             <Bar
@@ -202,10 +143,8 @@ export function MonthlyMetricsChart({ invoices }: MonthlyMetricsChartProps) {
               animationEasing="ease-out"
             />
           </BarChart>
-        </ResponsiveContainer>
-      </div>
+      </ResponsiveChart>
 
-      {/* Legend */}
       <div className="flex flex-wrap justify-center gap-x-4 gap-y-2">
         <div className="flex items-center space-x-2">
           <div

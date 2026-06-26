@@ -19,7 +19,9 @@ import { Label } from "~/components/ui/label";
 import { Skeleton } from "~/components/ui/skeleton";
 import { AddressForm } from "~/components/forms/address-form";
 import { FloatingActionBar } from "~/components/layout/floating-action-bar";
-import { PageHeader } from "~/components/layout/page-header";
+import { DashboardPageHeader } from "~/components/layout/page-header";
+import { DashboardPage, dashboardGapClass } from "~/components/layout/dashboard-page";
+import { cn } from "~/lib/utils";
 import { NumberInput } from "~/components/ui/number-input";
 import { api } from "~/trpc/react";
 import {
@@ -237,7 +239,7 @@ export function ClientForm({ clientId, mode }: ClientFormProps) {
 
   if (mode === "edit" && isLoadingClient) {
     return (
-      <div className="space-y-6 pb-32">
+      <DashboardPage className="pb-32">
         <Card>
           <CardHeader>
             <Skeleton className="h-6 w-32" />
@@ -259,21 +261,20 @@ export function ClientForm({ clientId, mode }: ClientFormProps) {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </DashboardPage>
     );
   }
 
   return (
     <>
-      <div className="space-y-6 pb-32">
-        <PageHeader
+      <DashboardPage className="pb-32">
+        <DashboardPageHeader
           title={mode === "edit" ? "Edit Client" : "Add Client"}
           description={
             mode === "edit"
               ? "Update client information below"
               : "Enter client details below to add a new client."
           }
-          variant="gradient"
         >
           <Button
             type="submit"
@@ -298,9 +299,13 @@ export function ClientForm({ clientId, mode }: ClientFormProps) {
               </>
             )}
           </Button>
-        </PageHeader>
+        </DashboardPageHeader>
 
-        <form id="client-form" onSubmit={handleSubmit} className="space-y-6">
+        <form
+          id="client-form"
+          onSubmit={handleSubmit}
+          className={cn("flex flex-col", dashboardGapClass)}
+        >
           {/* Main Form Container - styled like data table */}
           <div className="space-y-4">
             {/* Basic Information */}
@@ -508,7 +513,7 @@ export function ClientForm({ clientId, mode }: ClientFormProps) {
             </Card>
           </div>
         </form>
-      </div>
+      </DashboardPage>
 
       <FloatingActionBar
         leftContent={

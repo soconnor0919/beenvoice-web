@@ -32,6 +32,19 @@ export function isNavLinkActive(pathname: string, href: string): boolean {
   return pathname === href;
 }
 
+const ADMIN_ONLY_HREFS = new Set(["/dashboard/administration"]);
+
+export function getNavigationForUser(isAdmin: boolean): NavSection[] {
+  return navigationConfig
+    .map((section) => ({
+      ...section,
+      links: section.links.filter(
+        (link) => isAdmin || !ADMIN_ONLY_HREFS.has(link.href),
+      ),
+    }))
+    .filter((section) => section.links.length > 0);
+}
+
 export const navigationConfig: NavSection[] = [
   {
     title: "Main",

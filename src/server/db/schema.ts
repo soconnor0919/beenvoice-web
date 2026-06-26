@@ -32,37 +32,13 @@ export const users = createTable("user", (d) => ({
   // Custom fields
   prefersReducedMotion: d.boolean().default(false).notNull(),
   animationSpeedMultiplier: d.real().default(1).notNull(),
-  colorTheme: d.varchar({ length: 50 }).default("slate").notNull(),
-  customColor: d.varchar({ length: 50 }),
   theme: d.varchar({ length: 20 }).default("system").notNull(),
-  interfaceTheme: d.varchar({ length: 50 }).default("beenvoice").notNull(),
-  fontPreference: d.varchar({ length: 50 }).default("brand").notNull(),
-  bodyFontPreference: d.varchar({ length: 50 }).default("brand").notNull(),
-  headingFontPreference: d.varchar({ length: 50 }).default("brand").notNull(),
-  radiusPreference: d.varchar({ length: 20 }).default("xl").notNull(),
-  sidebarStyle: d.varchar({ length: 20 }).default("floating").notNull(),
   role: d.varchar({ length: 20 }).default("user").notNull(),
+  onboardingCompletedAt: d.timestamp(),
 }));
 
 export const platformSettings = createTable("platform_setting", (d) => ({
   id: d.varchar({ length: 50 }).notNull().primaryKey().default("global"),
-  brandName: d.varchar({ length: 100 }).default("beenvoice").notNull(),
-  brandTagline: d
-    .varchar({ length: 255 })
-    .default(
-      "Simple and efficient invoicing for freelancers and small businesses",
-    )
-    .notNull(),
-  brandLogoText: d.varchar({ length: 100 }).default("beenvoice").notNull(),
-  brandIcon: d.varchar({ length: 20 }).default("$").notNull(),
-  colorTheme: d.varchar({ length: 50 }).default("slate").notNull(),
-  customColor: d.varchar({ length: 50 }),
-  theme: d.varchar({ length: 20 }).default("system").notNull(),
-  interfaceTheme: d.varchar({ length: 50 }).default("beenvoice").notNull(),
-  bodyFontPreference: d.varchar({ length: 50 }).default("brand").notNull(),
-  headingFontPreference: d.varchar({ length: 50 }).default("brand").notNull(),
-  radiusPreference: d.varchar({ length: 20 }).default("xl").notNull(),
-  sidebarStyle: d.varchar({ length: 20 }).default("floating").notNull(),
   pdfTemplate: d.varchar({ length: 20 }).default("classic").notNull(),
   pdfAccentColor: d.varchar({ length: 50 }).default("#111827").notNull(),
   pdfFooterText: d

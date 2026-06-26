@@ -12,16 +12,13 @@ import {
   FileUp,
   Info,
   Key,
+  Monitor,
   Palette,
   Shield,
   Upload,
   User,
   Users,
   Link as LinkIcon,
-  Monitor,
-  PanelLeft,
-  Paintbrush,
-  Type,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { authClient } from "~/lib/auth-client";
@@ -70,11 +67,17 @@ import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
 import { api } from "~/trpc/react";
 import { env } from "~/env";
-import { Badge } from "~/components/ui/badge";
 import { Switch } from "~/components/ui/switch";
 import { Slider } from "~/components/ui/slider";
 import { useAnimationPreferences } from "~/components/providers/animation-preferences-provider";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import {
+  PageTabs,
+  PageTabsContent,
+  PageTabsList,
+  PageTabsTrigger,
+  pageTabsGridClass,
+} from "~/components/layout/page-tabs";
+import { cn } from "~/lib/utils";
 import {
   Select,
   SelectContent,
@@ -83,19 +86,8 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { useAppearance } from "~/components/providers/appearance-provider";
-import {
-  bodyFontPreferences,
-  brand,
-  colorModes,
-  colorThemes,
-  type ColorTheme,
-  headingFontPreferences,
-  interfaceThemes,
-  radiusPreferences,
-  sidebarStyles,
-  themePresets,
-  type InterfaceTheme,
-} from "~/lib/branding";
+import { brand, colorModes } from "~/lib/branding";
+import type { PdfTemplate } from "~/lib/appearance";
 import { ApiAccessSettings } from "./api-access-settings";
 
 const PdfPreviewFrame = dynamic(
@@ -109,72 +101,6 @@ const PdfPreviewFrame = dynamic(
     ),
   },
 );
-
-function hslChannelsToHex(channels?: string) {
-  const [hue, saturation, lightness] =
-    channels?.match(/[\d.]+/g)?.map(Number) ?? [];
-
-  if (
-    hue === undefined ||
-    saturation === undefined ||
-    lightness === undefined
-  ) {
-    return "#16a34a";
-  }
-
-  const s = saturation / 100;
-  const l = lightness / 100;
-  const c = (1 - Math.abs(2 * l - 1)) * s;
-  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
-  const m = l - c / 2;
-  const [r, g, b] =
-    hue < 60
-      ? [c, x, 0]
-      : hue < 120
-        ? [x, c, 0]
-        : hue < 180
-          ? [0, c, x]
-          : hue < 240
-            ? [0, x, c]
-            : hue < 300
-              ? [x, 0, c]
-              : [c, 0, x];
-
-  return `#${[r, g, b]
-    .map((channel) =>
-      Math.round((channel + m) * 255)
-        .toString(16)
-        .padStart(2, "0"),
-    )
-    .join("")}`;
-}
-
-function hexToHslChannels(hex: string) {
-  const normalized = hex.replace("#", "");
-  const red = parseInt(normalized.slice(0, 2), 16) / 255;
-  const green = parseInt(normalized.slice(2, 4), 16) / 255;
-  const blue = parseInt(normalized.slice(4, 6), 16) / 255;
-  const max = Math.max(red, green, blue);
-  const min = Math.min(red, green, blue);
-  const lightness = (max + min) / 2;
-  const delta = max - min;
-
-  if (delta === 0) {
-    return `0 0% ${Number((lightness * 100).toFixed(1))}%`;
-  }
-
-  const saturation = delta / (1 - Math.abs(2 * lightness - 1));
-  const hue =
-    max === red
-      ? 60 * (((green - blue) / delta) % 6)
-      : max === green
-        ? 60 * ((blue - red) / delta + 2)
-        : 60 * ((red - green) / delta + 4);
-
-  return `${Number(((hue + 360) % 360).toFixed(1))} ${Number(
-    (saturation * 100).toFixed(1),
-  )}% ${Number((lightness * 100).toFixed(1))}%`;
-}
 
 function isFullHexColor(value: string) {
   return /^#[0-9A-Fa-f]{6}$/.test(value);
@@ -197,43 +123,28 @@ export function SettingsContent() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLinking, setIsLinking] = useState(false);
   const authentikEnabled = env.NEXT_PUBLIC_AUTHENTIK_ENABLED === true;
-  const {
-    interfaceTheme,
-    bodyFontPreference,
-    headingFontPreference,
-    radiusPreference,
-    sidebarStyle,
-    colorMode,
-    colorTheme,
-    customColor,
-    brandName,
-    brandTagline,
-    brandLogoText,
-    brandIcon,
-    pdfTemplate,
-    pdfAccentColor,
-    pdfFooterText,
-    pdfShowLogo,
-    pdfShowPageNumbers,
-    updateAppearance,
-    updateAppearanceDebounced,
-    isUpdating: appearanceUpdating,
-  } = useAppearance();
-  const activePreset = themePresets[interfaceTheme];
-  const themeModified =
-    activePreset.bodyFontPreference !== bodyFontPreference ||
-    activePreset.headingFontPreference !== headingFontPreference ||
-    activePreset.colorTheme !== colorTheme ||
-    activePreset.radiusPreference !== radiusPreference ||
-    activePreset.sidebarStyle !== sidebarStyle ||
-    activePreset.pdfTemplate !== pdfTemplate ||
-    activePreset.pdfAccentColor !== pdfAccentColor;
-  const customColorValue = customColor ?? "142.1 76.2% 36.3%";
-  const selectAccent = (nextColorTheme: ColorTheme) => {
-    updateAppearance({
-      colorTheme: nextColorTheme,
-      ...(nextColorTheme === "custom" ? { customColor: customColorValue } : {}),
-    });
+  const { colorMode, updateAppearance, isUpdating: appearanceUpdating } =
+    useAppearance();
+  const utils = api.useUtils();
+  const { data: pdfSettings } = api.settings.getPdfSettings.useQuery();
+  const updatePdfSettingsMutation = api.settings.updatePdfSettings.useMutation({
+    onSuccess: async () => {
+      await utils.settings.getPdfSettings.invalidate();
+      toast.success("Invoice PDF settings updated");
+    },
+    onError: (error: { message: string }) => {
+      toast.error(`Failed to update PDF settings: ${error.message}`);
+    },
+  });
+
+  const savePdfSettings = (patch: {
+    pdfTemplate?: PdfTemplate;
+    pdfAccentColor?: string;
+    pdfFooterText?: string;
+    pdfShowLogo?: boolean;
+    pdfShowPageNumbers?: boolean;
+  }) => {
+    updatePdfSettingsMutation.mutate(patch);
   };
 
   const handleLinkAuthentik = async () => {
@@ -320,8 +231,9 @@ export function SettingsContent() {
 
   const importDataMutation = api.settings.importData.useMutation({
     onSuccess: (result) => {
+      const { imported } = result;
       toast.success(
-        `Data imported successfully! Added ${result.imported.clients} clients, ${result.imported.businesses} businesses, and ${result.imported.invoices} invoices.`,
+        `Data imported successfully! Added ${imported.clients} clients, ${imported.businesses} businesses, ${imported.invoices} invoices, ${imported.expenses} expenses, ${imported.timeEntries} time entries, and ${imported.recurringInvoices} recurring invoices.`,
       );
       setImportData("");
       setIsImportDialogOpen(false);
@@ -494,16 +406,16 @@ export function SettingsContent() {
   ];
 
   return (
-    <Tabs defaultValue="general">
-      <TabsList className="bg-muted/50 grid w-full grid-cols-4">
-        <TabsTrigger value="general">General</TabsTrigger>
-        <TabsTrigger value="preferences">Preferences</TabsTrigger>
-        <TabsTrigger value="data">Data</TabsTrigger>
-        <TabsTrigger value="api">API</TabsTrigger>
-      </TabsList>
+    <PageTabs defaultValue="general">
+      <PageTabsList>
+        <PageTabsTrigger value="general">General</PageTabsTrigger>
+        <PageTabsTrigger value="preferences">Preferences</PageTabsTrigger>
+        <PageTabsTrigger value="data">Data</PageTabsTrigger>
+        <PageTabsTrigger value="api">API</PageTabsTrigger>
+      </PageTabsList>
 
-      <TabsContent value="general" className="space-y-8">
-        <div className="grid gap-6 lg:grid-cols-2">
+      <PageTabsContent value="general">
+        <div className={cn(pageTabsGridClass, "lg:grid-cols-2")}>
           {/* Profile Section */}
           <Card className="form-section bg-card border-border border">
             <CardHeader>
@@ -724,9 +636,9 @@ export function SettingsContent() {
             </Button>
           </CardContent>
         </Card>
-      </TabsContent>
+      </PageTabsContent>
 
-      <TabsContent value="preferences" className="space-y-8">
+      <PageTabsContent value="preferences">
         <Card className="bg-card border-border border">
           <CardHeader>
             <CardTitle className="text-foreground flex items-center gap-2">
@@ -734,448 +646,49 @@ export function SettingsContent() {
               Appearance
             </CardTitle>
             <CardDescription>
-              Select the app skin, color mode, accent, and font stack.
+              Choose light, dark, or match your system setting.
             </CardDescription>
           </CardHeader>
-          {!isAdmin ? (
-            <CardContent>
-              <p className="text-muted-foreground text-sm">
-                Platform appearance and branding are managed by an
-                administrator.
+          <CardContent className="space-y-4">
+            <div className="max-w-sm space-y-2">
+              <Label className="flex items-center gap-2">
+                <Monitor className="h-4 w-4" />
+                Color mode
+              </Label>
+              <Select
+                value={colorMode}
+                onValueChange={(value) =>
+                  updateAppearance({
+                    colorMode: value as typeof colorMode,
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {colorModes.map((modeOption) => (
+                    <SelectItem
+                      key={modeOption.value}
+                      value={modeOption.value}
+                    >
+                      {modeOption.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs leading-snug">
+                {
+                  colorModes.find(
+                    (modeOption) => modeOption.value === colorMode,
+                  )?.description
+                }
               </p>
-            </CardContent>
-          ) : (
-            <CardContent className="space-y-8">
-              <section className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium">Brand</h3>
-                  <p className="text-muted-foreground text-xs">
-                    Public-facing name, logo text, and short product tagline.
-                  </p>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Brand Name</Label>
-                    <Input
-                      value={brandName}
-                      onChange={(event) =>
-                        updateAppearanceDebounced({
-                          brandName: event.target.value,
-                        })
-                      }
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Logo Text</Label>
-                    <Input
-                      value={brandLogoText}
-                      onChange={(event) =>
-                        updateAppearanceDebounced({
-                          brandLogoText: event.target.value,
-                        })
-                      }
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Brand Icon</Label>
-                    <Input
-                      value={brandIcon}
-                      onChange={(event) =>
-                        updateAppearanceDebounced({
-                          brandIcon: event.target.value,
-                        })
-                      }
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Tagline</Label>
-                    <Input
-                      value={brandTagline}
-                      onChange={(event) =>
-                        updateAppearanceDebounced({
-                          brandTagline: event.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-              </section>
-
-              <section className="space-y-4 border-t pt-6">
-                <div>
-                  <h3 className="text-sm font-medium">Theme</h3>
-                  <p className="text-muted-foreground text-xs">
-                    Presets establish the broad visual language; color mode and
-                    accent can still be tuned independently.
-                  </p>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <Label className="flex items-center gap-2">
-                        <Paintbrush className="h-4 w-4" />
-                        Theme Preset
-                      </Label>
-                      <div className="flex items-center gap-2">
-                        {themeModified && (
-                          <Badge variant="secondary" className="shrink-0">
-                            modified
-                          </Badge>
-                        )}
-                        {themeModified && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-xs"
-                            onClick={() => updateAppearance(activePreset)}
-                          >
-                            Reset
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    <Select
-                      value={interfaceTheme}
-                      onValueChange={(value) => {
-                        const nextTheme = value as InterfaceTheme;
-                        updateAppearance(themePresets[nextTheme]);
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {interfaceThemes.map((themeOption) => (
-                          <SelectItem
-                            key={themeOption.value}
-                            value={themeOption.value}
-                          >
-                            {themeOption.label}
-                            {themeOption.value === interfaceTheme &&
-                            themeModified
-                              ? " (modified)"
-                              : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-muted-foreground text-xs leading-snug">
-                      Applies the theme, fonts, accent, corner radius,
-                      navigation chrome, and PDF defaults.
-                    </p>
-                    <p className="text-muted-foreground text-xs leading-snug">
-                      {
-                        interfaceThemes.find(
-                          (themeOption) => themeOption.value === interfaceTheme,
-                        )?.description
-                      }
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Monitor className="h-4 w-4" />
-                      Color Mode
-                    </Label>
-                    <Select
-                      value={colorMode}
-                      onValueChange={(value) =>
-                        updateAppearance({
-                          colorMode: value as typeof colorMode,
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {colorModes.map((modeOption) => (
-                          <SelectItem
-                            key={modeOption.value}
-                            value={modeOption.value}
-                          >
-                            {modeOption.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-muted-foreground text-xs leading-snug">
-                      {
-                        colorModes.find(
-                          (modeOption) => modeOption.value === colorMode,
-                        )?.description
-                      }
-                    </p>
-                  </div>
-                </div>
-              </section>
-
-              <section className="space-y-4 border-t pt-6">
-                <div>
-                  <h3 className="text-sm font-medium">Typography</h3>
-                  <p className="text-muted-foreground text-xs">
-                    Body and heading fonts are separate so white-label installs
-                    can feel native without losing hierarchy.
-                  </p>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Type className="h-4 w-4" />
-                      Body Font
-                    </Label>
-                    <Select
-                      value={bodyFontPreference}
-                      onValueChange={(value) =>
-                        updateAppearance({
-                          bodyFontPreference:
-                            value as typeof bodyFontPreference,
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {bodyFontPreferences.map((fontOption) => (
-                          <SelectItem
-                            key={fontOption.value}
-                            value={fontOption.value}
-                          >
-                            {fontOption.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-muted-foreground text-xs leading-snug">
-                      {
-                        bodyFontPreferences.find(
-                          (fontOption) =>
-                            fontOption.value === bodyFontPreference,
-                        )?.description
-                      }
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Type className="h-4 w-4" />
-                      Heading Font
-                    </Label>
-                    <Select
-                      value={headingFontPreference}
-                      onValueChange={(value) =>
-                        updateAppearance({
-                          headingFontPreference:
-                            value as typeof headingFontPreference,
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {headingFontPreferences.map((fontOption) => (
-                          <SelectItem
-                            key={fontOption.value}
-                            value={fontOption.value}
-                          >
-                            {fontOption.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-muted-foreground text-xs leading-snug">
-                      {
-                        headingFontPreferences.find(
-                          (fontOption) =>
-                            fontOption.value === headingFontPreference,
-                        )?.description
-                      }
-                    </p>
-                  </div>
-                </div>
-              </section>
-
-              <section className="space-y-4 border-t pt-6">
-                <div>
-                  <h3 className="text-sm font-medium">Color</h3>
-                  <p className="text-muted-foreground text-xs">
-                    Accent controls primary actions, focus rings, and branded
-                    highlights.
-                  </p>
-                </div>
-                <div className="space-y-3">
-                  <Label>Accent</Label>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {colorThemes.map((themeOption) => (
-                      <button
-                        key={themeOption.value}
-                        type="button"
-                        onClick={() => selectAccent(themeOption.value)}
-                        className={`border-border bg-background hover:bg-muted flex items-center gap-2 rounded-lg border p-2 text-left text-sm transition-colors ${
-                          colorTheme === themeOption.value
-                            ? "border-primary bg-muted text-foreground"
-                            : ""
-                        }`}
-                      >
-                        <span
-                          className="size-4 rounded-full border"
-                          style={{ backgroundColor: themeOption.swatch }}
-                        />
-                        {themeOption.label}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => selectAccent("custom")}
-                      className={`border-border bg-background hover:bg-muted flex items-center gap-2 rounded-lg border p-2 text-left text-sm transition-colors ${
-                        colorTheme === "custom"
-                          ? "border-primary bg-muted text-foreground"
-                          : ""
-                      }`}
-                    >
-                      <span
-                        className="size-4 rounded-full border"
-                        style={{
-                          backgroundColor: customColor
-                            ? `hsl(${customColor})`
-                            : "hsl(142.1 76.2% 36.3%)",
-                        }}
-                      />
-                      Custom
-                    </button>
-                  </div>
-                  {colorTheme === "custom" && (
-                    <div className="space-y-2">
-                      <InputColor
-                        label="Custom Accent"
-                        value={hslChannelsToHex(customColorValue)}
-                        onBlur={() => undefined}
-                        onChange={(value) => {
-                          if (isFullHexColor(value)) {
-                            updateAppearanceDebounced({
-                              colorTheme: "custom",
-                              customColor: hexToHslChannels(value),
-                            });
-                          }
-                        }}
-                        className="mt-0"
-                      />
-                      <Input
-                        value={customColorValue}
-                        onChange={(event) =>
-                          updateAppearanceDebounced({
-                            colorTheme: "custom",
-                            customColor: event.target.value,
-                          })
-                        }
-                        placeholder="142.1 76.2% 36.3%"
-                      />
-                    </div>
-                  )}
-                  <p className="text-muted-foreground text-xs leading-snug">
-                    Custom values use HSL channels, for example 142.1 76.2%
-                    36.3%.
-                  </p>
-                </div>
-              </section>
-
-              <section className="space-y-4 border-t pt-6">
-                <div>
-                  <h3 className="text-sm font-medium">Layout</h3>
-                  <p className="text-muted-foreground text-xs">
-                    Control global rounding and whether navigation floats or
-                    sits flush with the viewport.
-                  </p>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Paintbrush className="h-4 w-4" />
-                      Corner Radius
-                    </Label>
-                    <Select
-                      value={radiusPreference}
-                      onValueChange={(value) =>
-                        updateAppearance({
-                          radiusPreference: value as typeof radiusPreference,
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {radiusPreferences.map((radiusOption) => (
-                          <SelectItem
-                            key={radiusOption.value}
-                            value={radiusOption.value}
-                          >
-                            {radiusOption.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-muted-foreground text-xs leading-snug">
-                      {
-                        radiusPreferences.find(
-                          (radiusOption) =>
-                            radiusOption.value === radiusPreference,
-                        )?.description
-                      }
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <PanelLeft className="h-4 w-4" />
-                      Navigation Chrome
-                    </Label>
-                    <Select
-                      value={sidebarStyle}
-                      onValueChange={(value) =>
-                        updateAppearance({
-                          sidebarStyle: value as typeof sidebarStyle,
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {sidebarStyles.map((styleOption) => (
-                          <SelectItem
-                            key={styleOption.value}
-                            value={styleOption.value}
-                          >
-                            {styleOption.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-muted-foreground text-xs leading-snug">
-                      {
-                        sidebarStyles.find(
-                          (styleOption) => styleOption.value === sidebarStyle,
-                        )?.description
-                      }
-                    </p>
-                  </div>
-                </div>
-              </section>
-
-              {appearanceUpdating && (
-                <p className="text-muted-foreground text-xs">
-                  Saving appearance...
-                </p>
-              )}
-            </CardContent>
-          )}
+            </div>
+            {appearanceUpdating && (
+              <p className="text-muted-foreground text-xs">Saving...</p>
+            )}
+          </CardContent>
         </Card>
 
         {isAdmin && (
@@ -1191,7 +704,12 @@ export function SettingsContent() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+              <div
+                className={cn(
+                  pageTabsGridClass,
+                  "xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]",
+                )}
+              >
                 <div className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
                     <div className="space-y-2">
@@ -1200,12 +718,13 @@ export function SettingsContent() {
                         PDF Template
                       </Label>
                       <Select
-                        value={pdfTemplate}
+                        value={pdfSettings?.pdfTemplate ?? "classic"}
                         onValueChange={(value) =>
-                          updateAppearance({
-                            pdfTemplate: value as typeof pdfTemplate,
+                          savePdfSettings({
+                            pdfTemplate: value as PdfTemplate,
                           })
                         }
+                        disabled={updatePdfSettingsMutation.isPending}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -1224,13 +743,11 @@ export function SettingsContent() {
                     <div className="space-y-2">
                       <InputColor
                         label="PDF Accent"
-                        value={pdfAccentColor}
+                        value={pdfSettings?.pdfAccentColor ?? "#111827"}
                         onBlur={() => undefined}
                         onChange={(value) => {
                           if (isFullHexColor(value)) {
-                            updateAppearance({
-                              pdfAccentColor: value,
-                            });
+                            savePdfSettings({ pdfAccentColor: value });
                           }
                         }}
                         className="mt-0"
@@ -1241,12 +758,11 @@ export function SettingsContent() {
                   <div className="space-y-2">
                     <Label>Footer Text</Label>
                     <Input
-                      value={pdfFooterText}
+                      value={pdfSettings?.pdfFooterText ?? ""}
                       onChange={(event) =>
-                        updateAppearanceDebounced({
-                          pdfFooterText: event.target.value,
-                        })
+                        savePdfSettings({ pdfFooterText: event.target.value })
                       }
+                      disabled={updatePdfSettingsMutation.isPending}
                     />
                   </div>
 
@@ -1259,10 +775,11 @@ export function SettingsContent() {
                         </p>
                       </div>
                       <Switch
-                        checked={pdfShowLogo}
+                        checked={pdfSettings?.pdfShowLogo ?? true}
                         onCheckedChange={(checked) =>
-                          updateAppearance({ pdfShowLogo: Boolean(checked) })
+                          savePdfSettings({ pdfShowLogo: Boolean(checked) })
                         }
+                        disabled={updatePdfSettingsMutation.isPending}
                         aria-label="Toggle PDF logo"
                       />
                     </div>
@@ -1275,12 +792,13 @@ export function SettingsContent() {
                         </p>
                       </div>
                       <Switch
-                        checked={pdfShowPageNumbers}
+                        checked={pdfSettings?.pdfShowPageNumbers ?? true}
                         onCheckedChange={(checked) =>
-                          updateAppearance({
+                          savePdfSettings({
                             pdfShowPageNumbers: Boolean(checked),
                           })
                         }
+                        disabled={updatePdfSettingsMutation.isPending}
                         aria-label="Toggle PDF page numbers"
                       />
                     </div>
@@ -1288,13 +806,14 @@ export function SettingsContent() {
                 </div>
 
                 <PdfPreviewFrame
-                  businessName={brandName}
+                  businessName={brand.name}
                   settings={{
-                    pdfTemplate,
-                    pdfAccentColor,
-                    pdfFooterText,
-                    pdfShowLogo,
-                    pdfShowPageNumbers,
+                    pdfTemplate: pdfSettings?.pdfTemplate ?? "classic",
+                    pdfAccentColor: pdfSettings?.pdfAccentColor ?? "#111827",
+                    pdfFooterText:
+                      pdfSettings?.pdfFooterText ?? "Professional Invoicing",
+                    pdfShowLogo: pdfSettings?.pdfShowLogo ?? true,
+                    pdfShowPageNumbers: pdfSettings?.pdfShowPageNumbers ?? true,
                   }}
                 />
               </div>
@@ -1397,9 +916,9 @@ export function SettingsContent() {
             </form>
           </CardContent>
         </Card>
-      </TabsContent>
+      </PageTabsContent>
 
-      <TabsContent value="data" className="space-y-8">
+      <PageTabsContent value="data">
         {/* Data Overview */}
         <Card className="form-section bg-card border-border border">
           <CardHeader>
@@ -1621,7 +1140,7 @@ export function SettingsContent() {
         </Card>
 
         {/* Delete Account (Danger Zone) */}
-        <Card className="border-destructive/50 bg-destructive/5 border">
+        <Card className="bg-card border-destructive/50 border">
           <CardHeader>
             <CardTitle className="text-destructive flex items-center gap-2">
               <AlertTriangle className="h-5 w-5" />
@@ -1672,11 +1191,11 @@ export function SettingsContent() {
             </AlertDialog>
           </CardContent>
         </Card>
-      </TabsContent>
+      </PageTabsContent>
 
-      <TabsContent value="api" className="space-y-8">
+      <PageTabsContent value="api">
         <ApiAccessSettings />
-      </TabsContent>
-    </Tabs>
+      </PageTabsContent>
+    </PageTabs>
   );
 }

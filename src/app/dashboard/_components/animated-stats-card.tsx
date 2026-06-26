@@ -8,7 +8,14 @@ import {
   Clock,
   Users,
 } from "lucide-react";
-import { Card, CardContent } from "~/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
+import { cn } from "~/lib/utils";
 
 type IconName = "DollarSign" | "Clock" | "Users" | "TrendingDown";
 
@@ -51,41 +58,36 @@ export function AnimatedStatsCard({
   const isPositive = trend === "up";
   const isNeutral = trend === "neutral";
 
-  // For now, always use the formatted value prop to ensure correct display
-  // Animation can be added back once the basic display is working correctly
-  const displayValue = value;
-
-  // Suppress unused parameter warnings for now
   void delay;
   void isCurrency;
   void numericValue;
 
   return (
     <Card>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between space-y-0 pb-2">
-          <div className="flex items-center space-x-2">
-            <Icon className="text-muted-foreground h-5 w-5" />
-            <p className="text-muted-foreground text-sm font-medium">{title}</p>
-          </div>
-          <div
-            className="flex items-center space-x-1 text-xs"
-            style={{
-              color: isNeutral
-                ? "hsl(var(--muted-foreground))"
-                : isPositive
-                  ? "oklch(var(--chart-2))"
-                  : "oklch(var(--chart-3))",
-            }}
-          >
-            <TrendIcon className="h-3 w-3" />
-            <span>{change}</span>
-          </div>
+      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+        <CardTitle className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
+          <Icon className="h-4 w-4" />
+          {title}
+        </CardTitle>
+        <div
+          className={cn(
+            "flex items-center gap-1 text-xs font-medium",
+            isNeutral
+              ? "text-muted-foreground"
+              : isPositive
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-amber-600 dark:text-amber-400",
+          )}
+        >
+          <TrendIcon className="h-3 w-3" />
+          <span className="font-mono tabular-nums">{change}</span>
         </div>
-        <div className="space-y-1">
-          <p className="animate-count-up text-2xl font-bold">{displayValue}</p>
-          <p className="text-muted-foreground text-xs">{description}</p>
-        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <p className="font-mono text-2xl font-semibold tracking-tight tabular-nums">
+          {value}
+        </p>
+        <CardDescription className="mt-1">{description}</CardDescription>
       </CardContent>
     </Card>
   );

@@ -9,7 +9,10 @@ import {
   Users,
 } from "lucide-react";
 import { BrowserFrame } from "~/components/marketing/browser-frame";
+import { getAppHost } from "~/lib/app-url";
 import { cn } from "~/lib/utils";
+
+const appHost = getAppHost();
 
 function MockSidebar({ active }: { active: "dashboard" | "invoices" | "time" }) {
   const items = [
@@ -87,7 +90,7 @@ export function InvoicesScreenshot({ className }: { className?: string }) {
   ];
 
   return (
-    <BrowserFrame className={className} url="beenvoice.app/dashboard/invoices">
+    <BrowserFrame className={className} url={`${appHost}/dashboard/invoices`}>
       <div className="flex min-h-[280px] sm:min-h-[320px]">
         <MockSidebar active="invoices" />
         <div className="min-w-0 flex-1 p-4 sm:p-5">
@@ -134,7 +137,7 @@ export function InvoicesScreenshot({ className }: { className?: string }) {
 
 export function TimeClockScreenshot({ className }: { className?: string }) {
   return (
-    <BrowserFrame className={className} url="beenvoice.app/dashboard/time-clock">
+    <BrowserFrame className={className} url={`${appHost}/dashboard/time-clock`}>
       <div className="flex min-h-[260px] sm:min-h-[300px]">
         <MockSidebar active="time" />
         <div className="min-w-0 flex-1 p-4 sm:p-5">
@@ -204,7 +207,7 @@ export function TimeClockScreenshot({ className }: { className?: string }) {
 
 export function DashboardScreenshot({ className }: { className?: string }) {
   return (
-    <BrowserFrame className={className} url="beenvoice.app/dashboard">
+    <BrowserFrame className={className} url={`${appHost}/dashboard`}>
       <div className="flex min-h-[260px] sm:min-h-[300px]">
         <MockSidebar active="dashboard" />
         <div className="min-w-0 flex-1 p-4 sm:p-5">

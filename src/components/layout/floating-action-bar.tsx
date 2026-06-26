@@ -3,15 +3,11 @@
 import React from "react";
 import { cn } from "~/lib/utils";
 import { Card, CardContent } from "~/components/ui/card";
-import { useAppearance } from "~/components/providers/appearance-provider";
 import { useSidebar } from "~/components/layout/sidebar-provider";
 
 interface FloatingActionBarProps {
-  /** Content to display on the left side */
   leftContent?: React.ReactNode;
-  /** Action buttons to display on the right */
   children: React.ReactNode;
-  /** Additional className for styling */
   className?: string;
 }
 
@@ -21,19 +17,12 @@ export function FloatingActionBar({
   className,
 }: FloatingActionBarProps) {
   const { isCollapsed } = useSidebar();
-  const { sidebarStyle } = useAppearance();
 
   return (
     <div
       className={cn(
         "pb-safe-area-inset-bottom fixed right-0 bottom-4 left-0 z-50 transition-all duration-300 ease-in-out",
-        sidebarStyle === "floating"
-          ? isCollapsed
-            ? "md:left-24"
-            : "md:left-[18rem]"
-          : isCollapsed
-            ? "md:left-16"
-            : "md:left-64",
+        isCollapsed ? "md:left-16" : "md:left-64",
         "animate-slide-in-bottom",
         className,
       )}

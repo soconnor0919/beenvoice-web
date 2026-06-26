@@ -25,7 +25,7 @@ export function PDFDownloadButton({
     { id: invoiceId },
     { enabled: false },
   );
-  const { data: platformTheme } = api.settings.getTheme.useQuery(undefined, {
+  const { data: pdfSettings } = api.settings.getPdfSettings.useQuery(undefined, {
     staleTime: 60_000,
   });
 
@@ -59,11 +59,11 @@ export function PDFDownloadButton({
       };
 
       await generateInvoicePDF(pdfData, {
-        pdfTemplate: platformTheme?.pdfTemplate,
-        pdfAccentColor: platformTheme?.pdfAccentColor,
-        pdfFooterText: platformTheme?.pdfFooterText,
-        pdfShowLogo: platformTheme?.pdfShowLogo,
-        pdfShowPageNumbers: platformTheme?.pdfShowPageNumbers,
+        pdfTemplate: pdfSettings?.pdfTemplate,
+        pdfAccentColor: pdfSettings?.pdfAccentColor,
+        pdfFooterText: pdfSettings?.pdfFooterText,
+        pdfShowLogo: pdfSettings?.pdfShowLogo,
+        pdfShowPageNumbers: pdfSettings?.pdfShowPageNumbers,
       });
       toast.success("PDF downloaded successfully");
     } catch (error) {

@@ -6,7 +6,18 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Label } from "~/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import {
+  PageTabs,
+  PageTabsContent,
+  PageTabsList,
+  PageTabsTrigger,
+} from "~/components/layout/page-tabs";
+import {
+  DashboardPage,
+  dashboardGridClass,
+} from "~/components/layout/dashboard-page";
+import { DashboardPageHeader } from "~/components/layout/page-header";
+import { cn } from "~/lib/utils";
 import {
   Select,
   SelectContent,
@@ -17,7 +28,6 @@ import {
 import { DatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { NumberInput } from "~/components/ui/number-input";
-import { PageHeader } from "~/components/layout/page-header";
 import { InvoiceLineItems } from "./invoice-line-items";
 import { InvoiceCalendarView } from "./invoice-calendar-view";
 import { EmailPreview } from "./email-preview";
@@ -62,19 +72,17 @@ interface InvoiceFormProps {
 
 function InvoiceFormSkeleton() {
   return (
-    <div className="space-y-6 pb-8">
-      <PageHeader
+    <DashboardPage className="pb-8">
+      <DashboardPageHeader
         title="Loading..."
         description="Loading invoice form"
-        variant="gradient"
       />
-      <div className="bg-muted h-12 w-full animate-pulse rounded-xl p-1" />{" "}
-      {/* Tabs Skeleton */}
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="bg-muted h-12 w-full animate-pulse rounded-xl p-1" />
+      <div className={cn(dashboardGridClass, "lg:grid-cols-2")}>
         <div className="bg-muted h-[200px] animate-pulse rounded-xl" />
         <div className="bg-muted h-[200px] animate-pulse rounded-xl" />
       </div>
-    </div>
+    </DashboardPage>
   );
 }
 
@@ -462,8 +470,8 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
 
   return (
     <>
-      <div className="page-enter space-y-6 pb-8">
-        <PageHeader
+      <DashboardPage className="pb-8">
+        <DashboardPageHeader
           title={
             invoiceId !== "new"
               ? "Edit Invoice"
@@ -476,7 +484,6 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
               ? "Set up a draft to clock time into later"
               : "Manage your invoice"
           }
-          variant="gradient"
         >
           {invoiceId !== "new" && (
             <Button
@@ -491,42 +498,28 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
             <Save className="mr-2 h-4 w-4" />
             {loading ? "Saving..." : "Save"}
           </Button>
-        </PageHeader>
+        </DashboardPageHeader>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
-          <Tabs value={activeTab} className="w-full" onValueChange={setActiveTab}>
-          {/* TAB SELECTOR: w-full, p-1, visible background */}
-          <TabsList className="bg-muted grid h-auto w-full grid-cols-4 rounded-xl p-1 lg:grid-cols-3">
-            <TabsTrigger
-              value="details"
-              className="data-[state=active]:bg-background rounded-lg py-2.5 data-[state=active]:shadow-sm"
-            >
-              Details
-            </TabsTrigger>
-            <TabsTrigger
-              value="items"
-              className="data-[state=active]:bg-background rounded-lg py-2.5 data-[state=active]:shadow-sm"
-            >
-              Items
-            </TabsTrigger>
-            <TabsTrigger
-              value="timesheet"
-              className="data-[state=active]:bg-background rounded-lg py-2.5 data-[state=active]:shadow-sm"
-            >
-              Timesheet
-            </TabsTrigger>
-            <TabsTrigger
-              value="preview"
-              className="data-[state=active]:bg-background rounded-lg py-2.5 data-[state=active]:shadow-sm lg:hidden"
-            >
+        <div
+          className={cn(
+            dashboardGridClass,
+            "lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]",
+          )}
+        >
+          <PageTabs value={activeTab} className="w-full" onValueChange={setActiveTab}>
+          <PageTabsList>
+            <PageTabsTrigger value="details">Details</PageTabsTrigger>
+            <PageTabsTrigger value="items">Items</PageTabsTrigger>
+            <PageTabsTrigger value="timesheet">Timesheet</PageTabsTrigger>
+            <PageTabsTrigger value="preview" className="lg:hidden">
               Preview
-            </TabsTrigger>
-          </TabsList>
+            </PageTabsTrigger>
+          </PageTabsList>
 
           {/* DETAILS TAB */}
-          <TabsContent
+          <PageTabsContent
             value="details"
-            className="mt-6 grid grid-cols-1 gap-6 focus-visible:outline-none lg:grid-cols-2"
+            className={cn(dashboardGridClass, "lg:grid-cols-2")}
           >
             <Card className="h-full">
               <CardHeader>
@@ -770,13 +763,10 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
                 />
               </CardContent>
             </Card>
-          </TabsContent>
+          </PageTabsContent>
 
           {/* ITEMS TAB */}
-          <TabsContent
-            value="items"
-            className="mt-6 focus-visible:outline-none"
-          >
+          <PageTabsContent value="items">
             <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
               <Card className="bg-primary/5 border-primary/20">
                 <CardContent className="flex items-center justify-between p-4">
@@ -826,13 +816,10 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
                 />
               </CardContent>
             </Card>
-          </TabsContent>
+          </PageTabsContent>
 
           {/* TIMESHEET TAB */}
-          <TabsContent
-            value="timesheet"
-            className="mt-6 focus-visible:outline-none"
-          >
+          <PageTabsContent value="timesheet">
             <Card className="min-h-[600px] w-full">
               <CardHeader>
                 <CardTitle className="flex gap-2">
@@ -850,37 +837,24 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
                 />
               </CardContent>
             </Card>
-          </TabsContent>
+          </PageTabsContent>
 
-          <TabsContent
-            value="preview"
-            className="mt-6 focus-visible:outline-none"
-          >
-            <Tabs
+          <PageTabsContent value="preview">
+            <PageTabs
               value={previewTab}
               onValueChange={setPreviewTab}
               className="w-full"
             >
-              <TabsList className="bg-muted grid h-auto w-full grid-cols-2 rounded-xl p-1">
-                <TabsTrigger
-                  value="pdf"
-                  className="data-[state=active]:bg-background rounded-lg py-2.5 data-[state=active]:shadow-sm"
-                >
-                  PDF
-                </TabsTrigger>
-                <TabsTrigger
-                  value="email"
-                  className="data-[state=active]:bg-background rounded-lg py-2.5 data-[state=active]:shadow-sm"
-                >
-                  Email
-                </TabsTrigger>
-              </TabsList>
+              <PageTabsList>
+                <PageTabsTrigger value="pdf">PDF</PageTabsTrigger>
+                <PageTabsTrigger value="email">Email</PageTabsTrigger>
+              </PageTabsList>
 
-              <TabsContent value="pdf" className="mt-6">
+              <PageTabsContent value="pdf">
                 <InvoicePdfPreviewPanel input={pdfPreviewInput} />
-              </TabsContent>
+              </PageTabsContent>
 
-              <TabsContent value="email" className="mt-6">
+              <PageTabsContent value="email">
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex gap-2">
@@ -928,10 +902,10 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
                     />
                   </CardContent>
                 </Card>
-              </TabsContent>
-            </Tabs>
-          </TabsContent>
-        </Tabs>
+              </PageTabsContent>
+            </PageTabs>
+          </PageTabsContent>
+        </PageTabs>
 
           <aside className="hidden lg:block">
             <div className="sticky top-4 space-y-4">
@@ -950,7 +924,7 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
             </div>
           </aside>
         </div>
-      </div>
+      </DashboardPage>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>

@@ -73,6 +73,8 @@ Start Postgres (dev compose exposes port 5432):
 docker compose -f docker-compose.dev.yml up -d
 ```
 
+After a fresh volume (`docker compose down -v`), Postgres starts empty — you must apply schema before registering or signing in.
+
 Apply schema (pick one):
 
 ```bash

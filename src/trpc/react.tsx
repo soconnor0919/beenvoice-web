@@ -8,6 +8,7 @@ import { useState } from "react";
 import SuperJSON from "superjson";
 
 import { createQueryClient } from "./query-client";
+import { getAppUrl } from "~/lib/app-url";
 import type { AppRouter } from "~/server/api/root";
 
 let clientQueryClientSingleton: QueryClient | undefined = undefined;
@@ -72,7 +73,5 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
 }
 
 function getBaseUrl() {
-  if (typeof window !== "undefined") return window.location.origin;
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
-  return `http://localhost:${process.env.PORT ?? 3000}`;
+  return getAppUrl();
 }

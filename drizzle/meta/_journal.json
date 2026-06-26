@@ -120,6 +120,20 @@
       "when": 1781500000000,
       "tag": "0016_fix_send_reminder_at_column",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1781600000000,
+      "tag": "0017_drop_theme_engine_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1781700000000,
+      "tag": "0018_user_onboarding",
+      "breakpoints": true
     }
   ]
 }

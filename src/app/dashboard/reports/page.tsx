@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { api } from "~/trpc/react";
-import { PageHeader } from "~/components/layout/page-header";
+import { DashboardPageHeader } from "~/components/layout/page-header";
+import { DashboardPage, dashboardStatGridClass } from "~/components/layout/dashboard-page";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { StatusBadge } from "~/components/data/status-badge";
 import { Button } from "~/components/ui/button";
@@ -14,7 +15,12 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { Separator } from "~/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import {
+  PageTabs,
+  PageTabsContent,
+  PageTabsList,
+  PageTabsTrigger,
+} from "~/components/layout/page-tabs";
 import { formatCurrency } from "~/lib/currency";
 import { getEffectiveInvoiceStatus } from "~/lib/invoice-status";
 import type { StoredInvoiceStatus } from "~/types/invoice";
@@ -308,42 +314,40 @@ export default function ReportsPage() {
 
   if (isLoading) {
     return (
-      <div className="page-enter space-y-6">
-        <PageHeader
+      <DashboardPage>
+        <DashboardPageHeader
           title="Reports"
           description="Revenue and tax analytics"
-          variant="gradient"
         />
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className={dashboardStatGridClass}>
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="bg-muted h-24 animate-pulse rounded-xl" />
           ))}
         </div>
-      </div>
+      </DashboardPage>
     );
   }
 
   return (
-    <div className="page-enter space-y-6 pb-6">
-      <PageHeader
+    <DashboardPage>
+      <DashboardPageHeader
         title="Reports"
         description="Revenue and tax analytics"
-        variant="gradient"
       />
 
-      <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="overview">
-            <TrendingUp className="mr-1.5 h-4 w-4" /> Overview
-          </TabsTrigger>
-          <TabsTrigger value="tax">
-            <FileText className="mr-1.5 h-4 w-4" /> Tax Summary
-          </TabsTrigger>
-        </TabsList>
+      <PageTabs defaultValue="overview">
+        <PageTabsList>
+          <PageTabsTrigger value="overview" className="gap-1.5">
+            <TrendingUp className="h-4 w-4" /> Overview
+          </PageTabsTrigger>
+          <PageTabsTrigger value="tax" className="gap-1.5">
+            <FileText className="h-4 w-4" /> Tax Summary
+          </PageTabsTrigger>
+        </PageTabsList>
 
         {/* ── OVERVIEW TAB ── */}
-        <TabsContent value="overview" className="mt-4 space-y-6">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <PageTabsContent value="overview">
+          <div className={dashboardStatGridClass}>
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-2">
@@ -630,10 +634,10 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
           )}
-        </TabsContent>
+        </PageTabsContent>
 
         {/* ── TAX SUMMARY TAB ── */}
-        <TabsContent value="tax" className="mt-4 space-y-6">
+        <PageTabsContent value="tax">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium">Tax Year</span>
@@ -840,8 +844,8 @@ export default function ReportsPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+        </PageTabsContent>
+      </PageTabs>
+    </DashboardPage>
   );
 }

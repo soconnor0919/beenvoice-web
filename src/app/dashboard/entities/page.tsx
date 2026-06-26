@@ -1,6 +1,5 @@
-import { Suspense } from "react";
-import { DataTableSkeleton } from "~/components/data/data-table";
-import { api, HydrateClient } from "~/trpc/server";
+import { api } from "~/trpc/server";
+import { DashboardPage } from "~/components/layout/dashboard-page";
 import { EntitiesView } from "./_components/entities-view";
 
 export default async function EntitiesPage({
@@ -11,16 +10,18 @@ export default async function EntitiesPage({
   const params = await searchParams;
   const initialTab = params.tab === "businesses" ? "businesses" : "clients";
 
-  void api.clients.getAll.prefetch();
-  void api.businesses.getAll.prefetch();
+  const [clients, businesses] = await Promise.all([
+    api.clients.getAll(),
+    api.businesses.getAll(),
+  ]);
 
   return (
-    <div className="page-enter space-y-6">
-      <HydrateClient>
-        <Suspense fallback={<DataTableSkeleton columns={5} rows={8} />}>
-          <EntitiesView initialTab={initialTab} />
-        </Suspense>
-      </HydrateClient>
-    </div>
+    <DashboardPage>
+      <EntitiesView
+        initialTab={initialTab}
+        clients={clients}
+        businesses={businesses}
+      />
+    </DashboardPage>
   );
 }

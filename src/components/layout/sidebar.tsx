@@ -6,7 +6,7 @@ import { authClient } from "~/lib/auth-client";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
 import { LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { navigationConfig, isNavLinkActive } from "~/lib/navigation";
+import { getNavigationForUser, isNavLinkActive } from "~/lib/navigation";
 import { useSidebar } from "./sidebar-provider";
 import { cn } from "~/lib/utils";
 import { Logo } from "~/components/branding/logo";
@@ -26,8 +26,9 @@ import {
 } from "~/components/ui/dropdown-menu";
 import { getGravatarUrl } from "~/lib/gravatar";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
-import { useAppearance } from "~/components/providers/appearance-provider";
 import { useAuthSession } from "~/hooks/use-auth-session";
+import { useDashboardUser } from "~/components/layout/dashboard-user-context";
+import { ActiveTimerWidget } from "~/app/dashboard/_components/active-timer-widget";
 
 interface SidebarProps {
   mobile?: boolean;
@@ -37,8 +38,9 @@ interface SidebarProps {
 export function Sidebar({ mobile, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { data: session, isPending } = useAuthSession();
+  const { isAdmin } = useDashboardUser();
   const { isCollapsed, toggleCollapse } = useSidebar();
-  const { sidebarStyle } = useAppearance();
+  const navSections = getNavigationForUser(isAdmin);
 
   // If mobile, always expanded
   const collapsed = mobile ? false : isCollapsed;
@@ -72,7 +74,7 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
             collapsed && "items-center",
           )}
         >
-          {navigationConfig.map((section) => (
+          {navSections.map((section) => (
             <div key={section.title}>
               {!collapsed && (
                 <div className="text-muted-foreground/60 mb-2 px-2 text-xs font-semibold tracking-wider uppercase">
@@ -162,6 +164,8 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
             </Button>
           </div>
         )}
+
+        <ActiveTimerWidget collapsed={collapsed} />
 
         <div
           className={cn(
@@ -265,10 +269,7 @@ export function Sidebar({ mobile, onClose }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "fixed z-30 hidden flex-col transition-all duration-300 ease-in-out md:flex",
-        sidebarStyle === "floating"
-          ? "border-border/50 bg-background/80 top-4 bottom-4 left-4 rounded-3xl border shadow-xl backdrop-blur-xl"
-          : "border-border bg-background top-0 bottom-0 left-0 rounded-none border-r shadow-none",
+        "border-border bg-background fixed top-0 bottom-0 left-0 z-30 hidden flex-col rounded-none border-r shadow-none transition-all duration-300 ease-in-out md:flex",
         isCollapsed ? "w-16" : "w-64",
       )}
     >

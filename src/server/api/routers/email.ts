@@ -4,6 +4,8 @@ import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { invoices, platformSettings } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
 import { env } from "~/env";
+import { NOREPLY_EMAIL } from "~/lib/app-email";
+import { getAppUrl } from "~/lib/app-url";
 import { generateInvoicePDFBlob } from "~/lib/pdf-export";
 import { generateInvoiceEmailTemplate } from "~/lib/email-templates";
 
@@ -153,7 +155,7 @@ export const emailRouter = createTRPCRouter({
         customMessage,
         userName,
         userEmail,
-        baseUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+        baseUrl: getAppUrl(),
       });
 
       // Determine Resend instance and email configuration to use
@@ -177,7 +179,7 @@ export const emailRouter = createTRPCRouter({
         fromEmail = `noreply@${env.RESEND_DOMAIN}`;
       } else if (env.RESEND_API_KEY) {
         resendInstance = new Resend(env.RESEND_API_KEY);
-        fromEmail = invoice.business?.email ?? "noreply@example.com";
+        fromEmail = invoice.business?.email ?? NOREPLY_EMAIL;
       } else {
         throw new Error(
           "Email delivery is not configured. Add a Resend API key globally or on this business.",

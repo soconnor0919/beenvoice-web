@@ -1,19 +1,18 @@
 "use client";
 
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { Cell, Pie, PieChart, Tooltip } from "recharts";
+import { ResponsiveChart } from "~/components/charts/responsive-chart";
 import { useAnimationPreferences } from "~/components/providers/animation-preferences-provider";
-import { getEffectiveInvoiceStatus } from "~/lib/invoice-status";
-import type { StoredInvoiceStatus } from "~/types/invoice";
 
-interface Invoice {
-  id: string;
-  totalAmount: number;
+export interface StatusChartDatum {
   status: string;
-  dueDate: Date | string;
+  name: string;
+  count: number;
+  value: number;
 }
 
 interface InvoiceStatusChartProps {
-  invoices: Invoice[];
+  data: StatusChartDatum[];
 }
 
 const STATUS_COLORS = {
@@ -47,52 +46,26 @@ function StatusTooltip({
     return (
       <div className="bg-card border-border rounded-lg border p-3 shadow-lg">
         <p className="font-medium">{data.name}</p>
-        <p className="text-sm">
+        <p className="font-mono text-sm tabular-nums">
           {data.count} invoice{data.count !== 1 ? "s" : ""}
         </p>
-        <p className="text-sm">{formatChartCurrency(data.value)}</p>
+        <p className="font-mono text-sm tabular-nums">
+          {formatChartCurrency(data.value)}
+        </p>
       </div>
     );
   }
   return null;
 }
 
-export function InvoiceStatusChart({ invoices }: InvoiceStatusChartProps) {
-  // Process invoice data to create status breakdown
-  const statusData = invoices.reduce(
-    (acc, invoice) => {
-      const effectiveStatus = getEffectiveInvoiceStatus(
-        invoice.status as StoredInvoiceStatus,
-        invoice.dueDate,
-      );
-
-      acc[effectiveStatus] ??= {
-        status: effectiveStatus,
-        count: 0,
-        value: 0,
-      };
-
-      acc[effectiveStatus].count += 1;
-      acc[effectiveStatus].value += invoice.totalAmount;
-
-      return acc;
-    },
-    {} as Record<string, { status: string; count: number; value: number }>,
-  );
-
-  const chartData = Object.values(statusData).map((item) => ({
-    ...item,
-    name: item.status.charAt(0).toUpperCase() + item.status.slice(1),
-  }));
-
-  // Animation / motion preferences
+export function InvoiceStatusChart({ data }: InvoiceStatusChartProps) {
   const { prefersReducedMotion, animationSpeedMultiplier } =
     useAnimationPreferences();
   const pieAnimationDuration = Math.round(
     600 / (animationSpeedMultiplier || 1),
   );
 
-  if (chartData.length === 0) {
+  if (data.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="text-center">
@@ -109,11 +82,10 @@ export function InvoiceStatusChart({ invoices }: InvoiceStatusChartProps) {
 
   return (
     <div className="space-y-4">
-      <div className="h-48 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
+      <ResponsiveChart height={192} className="h-48">
+        <PieChart>
             <Pie
-              data={chartData}
+              data={data}
               cx="50%"
               cy="50%"
               innerRadius={40}
@@ -124,7 +96,7 @@ export function InvoiceStatusChart({ invoices }: InvoiceStatusChartProps) {
               animationDuration={pieAnimationDuration}
               animationEasing="ease-out"
             >
-              {chartData.map((entry, index) => (
+              {data.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
                   fill={
@@ -135,12 +107,10 @@ export function InvoiceStatusChart({ invoices }: InvoiceStatusChartProps) {
             </Pie>
             <Tooltip content={<StatusTooltip />} />
           </PieChart>
-        </ResponsiveContainer>
-      </div>
+      </ResponsiveChart>
 
-      {/* Legend */}
       <div className="space-y-2">
-        {chartData.map((item) => (
+        {data.map((item) => (
           <div key={item.status} className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <div
@@ -153,8 +123,10 @@ export function InvoiceStatusChart({ invoices }: InvoiceStatusChartProps) {
               <span className="text-sm font-medium">{item.name}</span>
             </div>
             <div className="text-right">
-              <p className="text-sm font-medium">{item.count}</p>
-              <p className="text-muted-foreground text-xs">
+              <p className="font-mono text-sm font-medium tabular-nums">
+                {item.count}
+              </p>
+              <p className="text-muted-foreground font-mono text-xs tabular-nums">
                 {formatChartCurrency(item.value)}
               </p>
             </div>

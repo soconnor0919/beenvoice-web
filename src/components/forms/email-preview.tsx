@@ -1,6 +1,7 @@
 "use client";
 
 import { generateInvoiceEmailTemplate } from "~/lib/email-templates";
+import { getAppUrl } from "~/lib/app-url";
 
 interface EmailPreviewProps {
   subject: string;
@@ -89,10 +90,7 @@ export function EmailPreview({
         customMessage: customMessage,
         userName: invoice.business?.name ?? "Your Business",
         userEmail: fromEmail,
-        baseUrl:
-          typeof window !== "undefined"
-            ? window.location.origin
-            : "https://beenvoice.app",
+        baseUrl: getAppUrl(),
       })
     : null;
 

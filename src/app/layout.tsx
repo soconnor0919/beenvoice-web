@@ -4,14 +4,7 @@ import { type Metadata } from "next";
 import localFont from "next/font/local";
 
 import { Toaster } from "~/components/ui/sonner";
-import {
-  brand,
-  defaultBodyFontPreference,
-  defaultHeadingFontPreference,
-  defaultInterfaceTheme,
-  defaultRadiusPreference,
-  defaultSidebarStyle,
-} from "~/lib/branding";
+import { brand } from "~/lib/branding";
 
 import { UmamiScript } from "~/components/analytics/umami-script";
 import { BrandBackground } from "~/components/layout/brand-background";
@@ -34,23 +27,6 @@ const playfair = localFont({
   display: "swap",
 });
 
-const frutiger = localFont({
-  src: [
-    {
-      path: "../../public/fonts/frutiger/Frutiger.ttf",
-      weight: "400",
-      style: "normal",
-    },
-    {
-      path: "../../public/fonts/frutiger/Frutiger_bold.ttf",
-      weight: "700",
-      style: "normal",
-    },
-  ],
-  variable: "--font-frutiger",
-  display: "swap",
-});
-
 const geistMono = localFont({
   src: "../../public/fonts/geist/mono/GeistMono-VariableFont_wght.ttf",
   variable: "--font-geist-mono",
@@ -64,14 +40,8 @@ export default function RootLayout({
     <html
       suppressHydrationWarning
       lang="en"
-      data-interface-theme={defaultInterfaceTheme}
-      data-body-font={defaultBodyFontPreference}
-      data-heading-font={defaultHeadingFontPreference}
-      data-radius={defaultRadiusPreference}
-      data-sidebar-style={defaultSidebarStyle}
       data-color-mode="system"
-      data-color-theme="slate"
-      className={`${geistSans.variable} ${playfair.variable} ${frutiger.variable} ${geistMono.variable}`}
+      className={`${geistSans.variable} ${playfair.variable} ${geistMono.variable}`}
     >
       <head>
         <script
@@ -79,27 +49,11 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                var defaults = {
-                  interfaceTheme: "${defaultInterfaceTheme}",
-                  bodyFontPreference: "${defaultBodyFontPreference}",
-                  headingFontPreference: "${defaultHeadingFontPreference}",
-                  radiusPreference: "${defaultRadiusPreference}",
-                  sidebarStyle: "${defaultSidebarStyle}",
-                  colorMode: "system",
-                  colorTheme: "slate"
-                };
                 var stored = JSON.parse(localStorage.getItem("bv.appearance") || "{}");
-                var appearance = Object.assign(defaults, stored);
+                var colorMode = stored.colorMode || "system";
                 var root = document.documentElement;
-                root.dataset.interfaceTheme = appearance.interfaceTheme;
-                root.dataset.bodyFont = appearance.bodyFontPreference;
-                root.dataset.headingFont = appearance.headingFontPreference;
-                root.dataset.radius = appearance.radiusPreference;
-                root.dataset.sidebarStyle = appearance.sidebarStyle;
-                root.dataset.colorMode = appearance.colorMode;
-                root.dataset.colorTheme = appearance.colorTheme;
-                if (appearance.colorMode === "dark") root.classList.add("dark");
-                if (appearance.customColor) root.style.setProperty("--custom-primary", appearance.customColor);
+                root.dataset.colorMode = colorMode;
+                if (colorMode === "dark") root.classList.add("dark");
               } catch {}
             `,
           }}

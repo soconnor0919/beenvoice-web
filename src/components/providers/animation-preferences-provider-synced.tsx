@@ -177,7 +177,6 @@ export function AnimationPreferencesProviderSynced({
       serverPrefs.animationSpeedMultiplier !== animationSpeedMultiplier;
 
     if (localIsDefault || differs) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       performUpdate(
         {
           prefersReducedMotion: serverPrefs.prefersReducedMotion,
@@ -187,12 +186,9 @@ export function AnimationPreferencesProviderSynced({
       );
     }
     serverHydratedRef.current = true;
-  }, [
-    serverPrefs,
-    performUpdate,
-    prefersReducedMotion,
-    animationSpeedMultiplier,
-  ]);
+    // One-time hydration from server after local storage is read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverPrefs]);
 
   const updatePreferences = useCallback<
     AnimationPreferencesContextValue["updatePreferences"]

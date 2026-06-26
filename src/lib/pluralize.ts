@@ -15,6 +15,9 @@ const PLURALIZATION_RULES: Record<
   tax: { singular: "Tax", plural: "Taxes" },
   category: { singular: "Category", plural: "Categories" },
   company: { singular: "Company", plural: "Companies" },
+  entity: { singular: "Entity", plural: "Entities" },
+  expense: { singular: "Expense", plural: "Expenses" },
+  report: { singular: "Report", plural: "Reports" },
 };
 
 /**
@@ -105,20 +108,31 @@ export function capitalize(word: string): string {
  * Get a properly formatted label for a route segment
  */
 export function getRouteLabel(segment: string, isPlural = true): string {
-  // First, check if it's already in our rules
-  const rule = PLURALIZATION_RULES[segment.toLowerCase()];
+  const lower = segment.toLowerCase();
+
+  // Route segments are often already plural (e.g. "entities", "invoices")
+  const ruleByPlural = Object.values(PLURALIZATION_RULES).find(
+    (r) => r.plural.toLowerCase() === lower,
+  );
+  if (ruleByPlural) {
+    return isPlural ? ruleByPlural.plural : ruleByPlural.singular;
+  }
+
+  const rule = PLURALIZATION_RULES[lower];
   if (rule) {
     return isPlural ? rule.plural : rule.singular;
   }
 
-  // If not, try to find it by plural form
   const singularForm = singularize(segment);
   const singularRule = PLURALIZATION_RULES[singularForm.toLowerCase()];
   if (singularRule) {
     return isPlural ? singularRule.plural : singularRule.singular;
   }
 
-  // Otherwise, just capitalize and optionally pluralize
   const capitalized = capitalize(segment);
-  return isPlural ? pluralize(capitalized) : capitalized;
+  if (isPlural && /s$/i.test(segment)) {
+    return capitalized;
+  }
+
+  return isPlural ? pluralize(capitalized) : capitalize(singularForm);
 }

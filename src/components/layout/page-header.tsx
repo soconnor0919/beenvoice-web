@@ -1,5 +1,6 @@
 import React from "react";
 import { DashboardBreadcrumbs } from "~/components/navigation/dashboard-breadcrumbs";
+import { cn } from "~/lib/utils";
 
 interface PageHeaderProps {
   title: string;
@@ -40,7 +41,7 @@ export function PageHeader({
   };
 
   return (
-    <div className={`animate-fade-in-down mb-6 ${className}`}>
+    <div className={cn("animate-fade-in-down", className)}>
       {variant === "large-gradient" || variant === "gradient" ? (
         <div className="platform-header-surface bg-card text-card-foreground relative overflow-hidden rounded-xl border shadow-sm">
           <div className="platform-header-gradient from-primary/5 pointer-events-none absolute inset-0 bg-gradient-to-br via-transparent to-transparent" />
@@ -104,8 +105,9 @@ export function DashboardPageHeader({
     <PageHeader
       title={title}
       description={description}
-      variant="large-gradient"
-      className={className}
+      variant="gradient"
+      className={cn("mb-0", className)}
+      titleClassName="font-heading text-2xl font-semibold tracking-tight sm:text-3xl"
     >
       {children}
     </PageHeader>

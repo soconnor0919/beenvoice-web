@@ -12,6 +12,7 @@ import { TRPCError } from "@trpc/server";
 import { generateInvoicePDFBlob } from "~/lib/pdf-export";
 import { Resend } from "resend";
 import { env } from "~/env";
+import { NOREPLY_EMAIL } from "~/lib/app-email";
 import { generateReminderEmailTemplate } from "~/lib/email-templates/reminder-email";
 import type { db } from "~/server/db";
 
@@ -844,7 +845,7 @@ export const invoicesRouter = createTRPCRouter({
         fromEmail = `noreply@${env.RESEND_DOMAIN}`;
       } else if (env.RESEND_API_KEY) {
         resendInstance = new Resend(env.RESEND_API_KEY);
-        fromEmail = invoice.business?.email ?? "noreply@example.com";
+        fromEmail = invoice.business?.email ?? NOREPLY_EMAIL;
       } else {
         throw new TRPCError({
           code: "BAD_REQUEST",

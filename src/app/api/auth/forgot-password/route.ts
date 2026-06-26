@@ -4,6 +4,8 @@ import { db } from "~/server/db";
 import { users } from "~/server/db/schema";
 import { Resend } from "resend";
 import { env } from "~/env";
+import { APP_EMAIL_DOMAIN } from "~/lib/app-email";
+import { getAppUrl } from "~/lib/app-url";
 import { generatePasswordResetEmailTemplate } from "~/lib/email-templates";
 import crypto from "crypto";
 
@@ -72,7 +74,7 @@ export async function POST(request: NextRequest) {
     // Send password reset email using Resend
     try {
       const resend = new Resend(env.RESEND_API_KEY);
-      const resetUrl = `${process.env.BETTER_AUTH_URL ?? "http://localhost:3000"}/auth/reset-password?token=${resetToken}`;
+      const resetUrl = `${getAppUrl()}/auth/reset-password?token=${resetToken}`;
 
       const emailTemplate = generatePasswordResetEmailTemplate({
         userEmail: email,
@@ -82,8 +84,10 @@ export async function POST(request: NextRequest) {
         expiryHours: 24,
       });
 
+      const fromDomain = env.RESEND_DOMAIN ?? APP_EMAIL_DOMAIN;
+
       await resend.emails.send({
-        from: "beenvoice <noreply@beenvoice.com>",
+        from: `beenvoice <noreply@${fromDomain}>`,
         to: email,
         subject: emailTemplate.subject,
         html: emailTemplate.html,

@@ -1,9 +1,10 @@
+import { getAppHost } from "~/lib/app-url";
 import { cn } from "~/lib/utils";
 
 export function BrowserFrame({
   children,
   className,
-  url = "beenvoice.app/dashboard",
+  url = `${getAppHost()}/dashboard`,
 }: {
   children: React.ReactNode;
   className?: string;

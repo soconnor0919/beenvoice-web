@@ -20,7 +20,9 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AddressForm } from "~/components/forms/address-form";
 import { FloatingActionBar } from "~/components/layout/floating-action-bar";
-import { PageHeader } from "~/components/layout/page-header";
+import { DashboardPageHeader } from "~/components/layout/page-header";
+import { DashboardPage, dashboardGapClass } from "~/components/layout/dashboard-page";
+import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { Badge } from "~/components/ui/badge";
@@ -408,7 +410,7 @@ export function BusinessForm({ businessId, mode }: BusinessFormProps) {
     (mode === "edit" && isLoadingEmailConfig)
   ) {
     return (
-      <div className="space-y-6 pb-32">
+      <DashboardPage className="pb-32">
         <Card>
           <CardHeader>
             <Skeleton className="h-6 w-32" />
@@ -430,21 +432,20 @@ export function BusinessForm({ businessId, mode }: BusinessFormProps) {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </DashboardPage>
     );
   }
 
   return (
     <>
-      <div className="space-y-6 pb-32">
-        <PageHeader
+      <DashboardPage className="pb-32">
+        <DashboardPageHeader
           title={mode === "edit" ? "Edit Business" : "Add Business"}
           description={
             mode === "edit"
               ? "Update business information below"
               : "Enter business details below to add a new business."
           }
-          variant="gradient"
         >
           <Button
             type="submit"
@@ -469,9 +470,13 @@ export function BusinessForm({ businessId, mode }: BusinessFormProps) {
               </>
             )}
           </Button>
-        </PageHeader>
+        </DashboardPageHeader>
 
-        <form id="business-form" onSubmit={handleSubmit} className="space-y-6">
+        <form
+          id="business-form"
+          onSubmit={handleSubmit}
+          className={cn("flex flex-col", dashboardGapClass)}
+        >
           {/* Main Form Container - styled like data table */}
           <div className="space-y-4">
             {/* Basic Information */}
@@ -902,7 +907,7 @@ export function BusinessForm({ businessId, mode }: BusinessFormProps) {
             </Card>
           </div>
         </form>
-      </div>
+      </DashboardPage>
 
       <FloatingActionBar
         leftContent={

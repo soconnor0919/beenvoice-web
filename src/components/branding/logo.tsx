@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import { brand } from "~/lib/branding";
-import { useAppearance } from "~/components/providers/appearance-provider";
 import { cn } from "~/lib/utils";
 
 interface LogoProps {
@@ -25,10 +24,7 @@ function splitLogoText(logoText: string) {
 }
 
 export function Logo({ className, size = "md", animated = true }: LogoProps) {
-  const appearance = useAppearance();
-  const logoText = appearance.brandLogoText || brand.logoText;
-  const icon = appearance.brandIcon || brand.icon;
-  const [logoPrefix, logoSuffix] = splitLogoText(logoText);
+  const [logoPrefix, logoSuffix] = splitLogoText(brand.logoText);
   const sizeClasses = {
     sm: "text-base",
     md: "text-xl",
@@ -45,7 +41,7 @@ export function Logo({ className, size = "md", animated = true }: LogoProps) {
         sizeClasses={sizeClasses}
         logoPrefix={logoPrefix}
         logoSuffix={logoSuffix}
-        icon={icon}
+        icon={brand.icon}
       />
     );
   }
@@ -67,7 +63,7 @@ export function Logo({ className, size = "md", animated = true }: LogoProps) {
         transition={{ delay: 0.02, duration: 0.05, ease: "easeOut" }}
         className="text-primary font-bold tracking-tight"
       >
-        {icon}
+        {brand.icon}
       </motion.span>
       {size !== "icon" && (
         <>
@@ -75,8 +71,8 @@ export function Logo({ className, size = "md", animated = true }: LogoProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.03, duration: 0.05, ease: "easeOut" }}
-            className="inline-block w-1" // Reduced from w-2 to w-1 (half space)
-          ></motion.span>
+            className="inline-block w-1"
+          />
           <motion.span
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -125,7 +121,7 @@ function LogoContent({
       <span className="text-primary font-bold tracking-tight">{icon}</span>
       {size !== "icon" && (
         <>
-          <span className="inline-block w-1"></span>
+          <span className="inline-block w-1" />
           <span className="text-foreground font-bold tracking-tight">
             {logoPrefix}
           </span>

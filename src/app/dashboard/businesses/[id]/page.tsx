@@ -3,7 +3,13 @@ import { api } from "~/trpc/server";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
-import { PageHeader } from "~/components/layout/page-header";
+import { DashboardPageHeader } from "~/components/layout/page-header";
+import {
+  DashboardPage,
+  dashboardGapClass,
+  dashboardGridClass,
+} from "~/components/layout/dashboard-page";
+import { cn } from "~/lib/utils";
 import { Separator } from "~/components/ui/separator";
 import Link from "next/link";
 import {
@@ -43,11 +49,10 @@ export default async function BusinessDetailPage({
   };
 
   return (
-    <div className="space-y-6 pb-32">
-      <PageHeader
+    <DashboardPage className="pb-32">
+      <DashboardPageHeader
         title={`${business.name}${business.nickname ? ` (${business.nickname})` : ""}`}
         description="View business details and information"
-        variant="gradient"
       >
         <Button asChild variant="outline" className="shadow-sm">
           <Link href="/dashboard/entities?tab=businesses">
@@ -61,9 +66,9 @@ export default async function BusinessDetailPage({
             <span>Edit Business</span>
           </Link>
         </Button>
-      </PageHeader>
+      </DashboardPageHeader>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className={cn(dashboardGridClass, "lg:grid-cols-3")}>
         {/* Business Information Card */}
         <div className="lg:col-span-2">
           <Card className="bg-card border-border border">
@@ -265,7 +270,7 @@ export default async function BusinessDetailPage({
         </div>
 
         {/* Settings & Actions Card */}
-        <div className="space-y-6">
+        <div className={cn("flex flex-col", dashboardGapClass)}>
           <Card className="bg-card border-border border">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -323,6 +328,6 @@ export default async function BusinessDetailPage({
           </Card>
         </div>
       </div>
-    </div>
+    </DashboardPage>
   );
 }

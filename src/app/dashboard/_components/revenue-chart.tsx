@@ -3,11 +3,11 @@
 import {
   Area,
   AreaChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import { ResponsiveChart } from "~/components/charts/responsive-chart";
 import { useAnimationPreferences } from "~/components/providers/animation-preferences-provider";
 
 interface RevenueChartProps {
@@ -41,7 +41,10 @@ const CustomTooltip = ({
     return (
       <div className="bg-card border-border rounded-lg border p-3 shadow-lg">
         <p className="font-medium">{label}</p>
-        <p style={{ color: "hsl(0, 0%, 60%)" }}>
+        <p
+          className="font-mono tabular-nums"
+          style={{ color: "hsl(0, 0%, 60%)" }}
+        >
           Revenue: {formatCurrency(data.revenue)}
         </p>
         <p className="text-muted-foreground text-sm">
@@ -84,9 +87,8 @@ export function RevenueChart({ data }: RevenueChartProps) {
   }
 
   return (
-    <div className="h-48 w-full md:h-64">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={chartData}>
+    <ResponsiveChart height={256} className="h-48 md:h-64">
+      <AreaChart data={chartData}>
           <defs>
             <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
               <stop
@@ -110,7 +112,11 @@ export function RevenueChart({ data }: RevenueChartProps) {
           <YAxis
             axisLine={false}
             tickLine={false}
-            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+            tick={{
+              fontSize: 12,
+              fill: "hsl(var(--muted-foreground))",
+              fontFamily: "var(--font-mono)",
+            }}
             tickFormatter={formatCurrency}
           />
           <Tooltip content={<CustomTooltip />} />
@@ -127,7 +133,6 @@ export function RevenueChart({ data }: RevenueChartProps) {
             animationEasing="ease-out"
           />
         </AreaChart>
-      </ResponsiveContainer>
-    </div>
+    </ResponsiveChart>
   );
 }

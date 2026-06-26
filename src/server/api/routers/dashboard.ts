@@ -1,155 +1,244 @@
+import { and, desc, eq } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-import { invoices, clients } from "~/server/db/schema";
-import { and, desc, eq, isNotNull, lte } from "drizzle-orm";
+import { getEffectiveInvoiceStatus } from "~/lib/invoice-status";
+import { clients, invoices } from "~/server/db/schema";
+import type { StoredInvoiceStatus } from "~/types/invoice";
+
+type LiteInvoice = {
+  id: string;
+  totalAmount: number;
+  status: string;
+  dueDate: Date;
+  issueDate: Date;
+};
+
+function buildRevenueMonthKeys(now: Date, count: number) {
+  const keys: string[] = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    keys.push(
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+    );
+  }
+  return keys;
+}
+
+function aggregateDashboardMetrics(userInvoices: LiteInvoice[], now: Date) {
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+  let totalRevenue = 0;
+  let pendingAmount = 0;
+  let overdueCount = 0;
+  let currentMonthRevenue = 0;
+  let lastMonthRevenue = 0;
+
+  const revenueByMonth = Object.fromEntries(
+    buildRevenueMonthKeys(now, 6).map((key) => [key, 0]),
+  ) as Record<string, number>;
+
+  const statusTotals: Record<
+    string,
+    { status: string; count: number; value: number }
+  > = {};
+
+  const monthlyTotals: Record<
+    string,
+    {
+      month: string;
+      totalInvoices: number;
+      paidInvoices: number;
+      pendingInvoices: number;
+      overdueInvoices: number;
+      draftInvoices: number;
+    }
+  > = {};
+
+  for (const inv of userInvoices) {
+    const effectiveStatus = getEffectiveInvoiceStatus(
+      inv.status as StoredInvoiceStatus,
+      inv.dueDate,
+    );
+    const amount = inv.totalAmount;
+    const issueDate = new Date(inv.issueDate);
+
+    if (effectiveStatus === "paid") {
+      totalRevenue += amount;
+
+      if (issueDate >= currentMonthStart) {
+        currentMonthRevenue += amount;
+      } else if (
+        issueDate >= lastMonthStart &&
+        issueDate < currentMonthStart
+      ) {
+        lastMonthRevenue += amount;
+      }
+
+      const revenueKey = `${issueDate.getFullYear()}-${String(issueDate.getMonth() + 1).padStart(2, "0")}`;
+      const monthRevenue = revenueByMonth[revenueKey];
+      if (monthRevenue !== undefined) {
+        revenueByMonth[revenueKey] = monthRevenue + amount;
+      }
+    } else if (effectiveStatus === "sent" || effectiveStatus === "overdue") {
+      pendingAmount += amount;
+    }
+
+    if (effectiveStatus === "overdue") {
+      overdueCount++;
+    }
+
+    statusTotals[effectiveStatus] ??= {
+      status: effectiveStatus,
+      count: 0,
+      value: 0,
+    };
+    statusTotals[effectiveStatus].count += 1;
+    statusTotals[effectiveStatus].value += amount;
+
+    const monthKey = `${issueDate.getFullYear()}-${String(issueDate.getMonth() + 1).padStart(2, "0")}`;
+    monthlyTotals[monthKey] ??= {
+      month: monthKey,
+      totalInvoices: 0,
+      paidInvoices: 0,
+      pendingInvoices: 0,
+      overdueInvoices: 0,
+      draftInvoices: 0,
+    };
+    monthlyTotals[monthKey].totalInvoices += 1;
+
+    switch (effectiveStatus) {
+      case "paid":
+        monthlyTotals[monthKey].paidInvoices += 1;
+        break;
+      case "sent":
+        monthlyTotals[monthKey].pendingInvoices += 1;
+        break;
+      case "overdue":
+        monthlyTotals[monthKey].overdueInvoices += 1;
+        break;
+      case "draft":
+        monthlyTotals[monthKey].draftInvoices += 1;
+        break;
+    }
+  }
+
+  const revenueChartData = Object.entries(revenueByMonth)
+    .map(([month, revenue]) => ({
+      month,
+      revenue,
+      monthLabel: new Date(month + "-01").toLocaleDateString("en-US", {
+        month: "short",
+        year: "2-digit",
+      }),
+    }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+
+  const statusChartData = Object.values(statusTotals).map((item) => ({
+    ...item,
+    name: item.status.charAt(0).toUpperCase() + item.status.slice(1),
+  }));
+
+  const monthlyMetricsChartData = Object.values(monthlyTotals)
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .slice(-6)
+    .map((item) => ({
+      ...item,
+      monthLabel: new Date(item.month + "-01").toLocaleDateString("en-US", {
+        month: "short",
+        year: "2-digit",
+      }),
+    }));
+
+  return {
+    totalRevenue,
+    pendingAmount,
+    overdueCount,
+    revenueChange:
+      lastMonthRevenue > 0
+        ? ((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100
+        : 0,
+    revenueChartData,
+    statusChartData,
+    monthlyMetricsChartData,
+  };
+}
 
 export const dashboardRouter = createTRPCRouter({
   getStats: protectedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
     const now = new Date();
-    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
-    // 1. Fetch all invoices for the user to calculate stats
-    // Note: For very large datasets, we should use separate count/sum queries,
-    // but for typical usage, fetching fields is fine and allows flexible JS calculation
-    // where SQL complexity might be high (e.g. dynamic status).
-    // However, let's try to be efficient with SQL where possible.
-
-    const userInvoices = await ctx.db.query.invoices.findMany({
-      where: eq(invoices.createdById, userId),
-      columns: {
-        id: true,
-        totalAmount: true,
-        status: true,
-        dueDate: true,
-        issueDate: true,
-      },
-    });
-
-    const userClientsCount = await ctx.db.$count(
-      clients,
-      eq(clients.createdById, userId),
-    );
-
-    // Helper to check status
-    const getStatus = (inv: (typeof userInvoices)[0]) => {
-      if (inv.status === "paid") return "paid";
-      if (inv.status === "draft") return "draft";
-      if (new Date(inv.dueDate) < now && inv.status !== "paid")
-        return "overdue";
-      return "sent";
-    };
-
-    // Calculate Stats
-    let totalRevenue = 0;
-    let pendingAmount = 0;
-    let overdueCount = 0;
-
-    let currentMonthRevenue = 0;
-    let lastMonthRevenue = 0;
-
-    for (const inv of userInvoices) {
-      const status = getStatus(inv);
-      const amount = inv.totalAmount;
-      const issueDate = new Date(inv.issueDate);
-
-      if (status === "paid") {
-        totalRevenue += amount;
-
-        if (issueDate >= currentMonthStart) {
-          currentMonthRevenue += amount;
-        } else if (
-          issueDate >= lastMonthStart &&
-          issueDate < currentMonthStart
-        ) {
-          lastMonthRevenue += amount;
-        }
-      } else if (status === "sent" || status === "overdue") {
-        pendingAmount += amount;
-      }
-
-      if (status === "overdue") {
-        overdueCount++;
-      }
-    }
-
-    // Revenue Trend (Last 6 months)
-    const revenueByMonth: Record<string, number> = {};
-    for (let i = 0; i < 6; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      revenueByMonth[key] = 0;
-    }
-
-    for (const inv of userInvoices) {
-      if (getStatus(inv) === "paid") {
-        const d = new Date(inv.issueDate);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        if (revenueByMonth[key] !== undefined) {
-          revenueByMonth[key] += inv.totalAmount;
-        }
-      }
-    }
-
-    const revenueChartData = Object.entries(revenueByMonth)
-      .map(([month, revenue]) => ({
-        month,
-        revenue,
-        monthLabel: new Date(month + "-01").toLocaleDateString("en-US", {
-          month: "short",
-          year: "2-digit",
-        }),
-      }))
-      .sort((a, b) => a.month.localeCompare(b.month));
-
-    // Recent Activity
-    const recentInvoices = await ctx.db.query.invoices.findMany({
-      where: eq(invoices.createdById, userId),
-      orderBy: [
-        desc(invoices.issueDate),
-        desc(invoices.dueDate),
-        desc(invoices.invoiceNumber),
-      ],
-      limit: 5,
-      with: {
-        client: {
-          columns: { name: true },
+    const [
+      userInvoices,
+      userClientsCount,
+      recentInvoices,
+      currentDraft,
+    ] = await Promise.all([
+      ctx.db.query.invoices.findMany({
+        where: eq(invoices.createdById, userId),
+        columns: {
+          id: true,
+          totalAmount: true,
+          status: true,
+          dueDate: true,
+          issueDate: true,
         },
-      },
-    });
+      }),
+      ctx.db.$count(clients, eq(clients.createdById, userId)),
+      ctx.db.query.invoices.findMany({
+        where: eq(invoices.createdById, userId),
+        orderBy: [
+          desc(invoices.issueDate),
+          desc(invoices.dueDate),
+          desc(invoices.invoiceNumber),
+        ],
+        limit: 5,
+        with: {
+          client: {
+            columns: { name: true },
+          },
+        },
+      }),
+      ctx.db.query.invoices.findFirst({
+        where: and(
+          eq(invoices.createdById, userId),
+          eq(invoices.status, "draft"),
+        ),
+        orderBy: [
+          desc(invoices.issueDate),
+          desc(invoices.dueDate),
+          desc(invoices.invoiceNumber),
+        ],
+        columns: {
+          id: true,
+          invoiceNumber: true,
+          totalAmount: true,
+        },
+        with: {
+          client: { columns: { name: true } },
+          items: { columns: { hours: true } },
+        },
+      }),
+    ]);
 
-    const sendReminderDue = await ctx.db.query.invoices.findMany({
-      where: and(
-        eq(invoices.createdById, userId),
-        eq(invoices.status, "draft"),
-        isNotNull(invoices.sendReminderAt),
-        lte(invoices.sendReminderAt, now),
-      ),
-      columns: {
-        id: true,
-        invoiceNumber: true,
-        invoicePrefix: true,
-        sendReminderAt: true,
-      },
-      with: {
-        client: { columns: { name: true } },
-      },
-      orderBy: [desc(invoices.sendReminderAt)],
-      limit: 10,
-    });
+    const metrics = aggregateDashboardMetrics(userInvoices, now);
 
     return {
-      totalRevenue,
-      pendingAmount,
-      overdueCount,
+      ...metrics,
       totalClients: userClientsCount,
-      revenueChange:
-        lastMonthRevenue > 0
-          ? ((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100
-          : 0,
-      revenueChartData,
       recentInvoices,
-      sendReminderDue,
+      currentDraft: currentDraft
+        ? {
+            id: currentDraft.id,
+            invoiceNumber: currentDraft.invoiceNumber,
+            totalAmount: currentDraft.totalAmount,
+            client: currentDraft.client,
+            totalHours: currentDraft.items.reduce(
+              (sum, item) => sum + item.hours,
+              0,
+            ),
+          }
+        : null,
     };
   }),
 });

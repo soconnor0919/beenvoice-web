@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useAuthSession } from "~/hooks/use-auth-session";
-import { navigationConfig, isNavLinkActive } from "~/lib/navigation";
+import { getNavigationForUser, isNavLinkActive } from "~/lib/navigation";
+import { useDashboardUser } from "~/components/layout/dashboard-user-context";
 
 interface SidebarTriggerProps {
   isOpen: boolean;
@@ -16,6 +17,8 @@ interface SidebarTriggerProps {
 export function SidebarTrigger({ isOpen, onToggle }: SidebarTriggerProps) {
   const pathname = usePathname();
   const { isPending } = useAuthSession();
+  const { isAdmin } = useDashboardUser();
+  const navSections = getNavigationForUser(isAdmin);
 
   return (
     <>
@@ -34,7 +37,7 @@ export function SidebarTrigger({ isOpen, onToggle }: SidebarTriggerProps) {
         <div className="bg-background border-border absolute top-full right-0 left-0 z-40 mt-1 border-t">
           {/* Navigation content */}
           <nav className="flex flex-col p-4">
-            {navigationConfig.map((section, sectionIndex) => (
+            {navSections.map((section, sectionIndex) => (
               <div
                 key={section.title}
                 className={sectionIndex > 0 ? "mt-4" : ""}

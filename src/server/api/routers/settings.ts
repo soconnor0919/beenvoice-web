@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import bcrypt from "bcryptjs";
 import {
@@ -14,29 +14,20 @@ import {
   businesses,
   invoices,
   invoiceItems,
+  invoicePayments,
+  invoiceTemplates,
+  expenses,
+  recurringInvoices,
+  recurringInvoiceItems,
+  timeEntries,
   platformSettings,
 } from "~/server/db/schema";
 import {
   colorModeSchema,
-  colorThemeSchema,
-  defaultBodyFontPreference,
-  defaultHeadingFontPreference,
-  defaultInterfaceTheme,
-  defaultRadiusPreference,
-  defaultSidebarStyle,
-  fallbackAppearance,
-  fontPreferenceSchema,
-  hslChannelsSchema,
-  interfaceThemeSchema,
+  defaultColorMode,
+  defaultPdfSettings,
   pdfTemplateSchema,
-  radiusPreferenceSchema,
-  sidebarStyleSchema,
   type ColorMode,
-  type ColorTheme,
-  type FontPreference,
-  type InterfaceTheme,
-  type RadiusPreference,
-  type SidebarStyle,
 } from "~/lib/branding";
 import type { db as database } from "~/server/db";
 
@@ -54,6 +45,24 @@ async function requireAdmin(ctx: {
   }
 }
 
+function resolveBusinessId(
+  refs: { businessName?: string; businessNickname?: string },
+  businessIdMap: Map<string, string>,
+): string | null {
+  if (refs.businessNickname) {
+    const byNickname = businessIdMap.get(refs.businessNickname);
+    if (byNickname) return byNickname;
+  }
+  if (refs.businessName) {
+    return businessIdMap.get(refs.businessName) ?? null;
+  }
+  return null;
+}
+
+function backupImportError(message: string): never {
+  throw new TRPCError({ code: "BAD_REQUEST", message });
+}
+
 // Validation schemas for backup data
 const ClientBackupSchema = z.object({
   name: z.string(),
@@ -65,6 +74,8 @@ const ClientBackupSchema = z.object({
   state: z.string().optional(),
   postalCode: z.string().optional(),
   country: z.string().optional(),
+  defaultHourlyRate: z.number().optional(),
+  currency: z.string().default("USD"),
 });
 
 const BusinessBackupSchema = z.object({
@@ -82,10 +93,13 @@ const BusinessBackupSchema = z.object({
   taxId: z.string().optional(),
   logoUrl: z.string().optional(),
   isDefault: z.boolean().default(false),
+  resendApiKey: z.string().optional(),
+  resendDomain: z.string().optional(),
+  emailFromName: z.string().optional(),
 });
 
 const InvoiceItemBackupSchema = z.object({
-  date: z.string().transform((str) => new Date(str)),
+  date: z.coerce.date(),
   description: z.string(),
   hours: z.number(),
   rate: z.number(),
@@ -95,29 +109,107 @@ const InvoiceItemBackupSchema = z.object({
 
 const InvoiceBackupSchema = z.object({
   invoiceNumber: z.string(),
+  invoicePrefix: z.string().default("#"),
   businessName: z.string().optional(),
   businessNickname: z.string().optional(),
   clientName: z.string(),
-  issueDate: z.string().transform((str) => new Date(str)),
-  dueDate: z.string().transform((str) => new Date(str)),
+  issueDate: z.coerce.date(),
+  dueDate: z.coerce.date(),
   status: z.string().default("draft"),
   totalAmount: z.number().default(0),
   taxRate: z.number().default(0),
+  currency: z.string().default("USD"),
   notes: z.string().optional(),
   emailMessage: z.string().optional(),
   items: z.array(InvoiceItemBackupSchema),
 });
 
+const InvoicePaymentBackupSchema = z.object({
+  invoiceNumber: z.string(),
+  amount: z.number(),
+  currency: z.string().default("USD"),
+  date: z.coerce.date(),
+  method: z.string().default("other"),
+  notes: z.string().optional(),
+});
+
+const InvoiceTemplateBackupSchema = z.object({
+  name: z.string(),
+  type: z.string().default("notes"),
+  content: z.string(),
+  isDefault: z.boolean().default(false),
+});
+
+const RecurringInvoiceItemBackupSchema = z.object({
+  description: z.string(),
+  hours: z.number(),
+  rate: z.number(),
+  position: z.number().default(0),
+});
+
+const RecurringInvoiceBackupSchema = z.object({
+  name: z.string(),
+  clientName: z.string(),
+  businessName: z.string().optional(),
+  businessNickname: z.string().optional(),
+  schedule: z.string().default("monthly"),
+  status: z.string().default("active"),
+  invoicePrefix: z.string().default("#"),
+  taxRate: z.number().default(0),
+  currency: z.string().default("USD"),
+  notes: z.string().optional(),
+  emailMessage: z.string().optional(),
+  nextDueAt: z.coerce.date(),
+  lastGeneratedAt: z.coerce.date().optional(),
+  items: z.array(RecurringInvoiceItemBackupSchema),
+});
+
+const ExpenseBackupSchema = z.object({
+  clientName: z.string().optional(),
+  businessName: z.string().optional(),
+  businessNickname: z.string().optional(),
+  invoiceNumber: z.string().optional(),
+  date: z.coerce.date(),
+  description: z.string(),
+  amount: z.number(),
+  currency: z.string().default("USD"),
+  category: z.string().optional(),
+  billable: z.boolean().default(false),
+  reimbursable: z.boolean().default(false),
+  taxDeductible: z.boolean().default(false),
+  notes: z.string().optional(),
+});
+
+const TimeEntryBackupSchema = z.object({
+  description: z.string().default(""),
+  clientName: z.string().optional(),
+  invoiceNumber: z.string().optional(),
+  startedAt: z.coerce.date(),
+  endedAt: z.coerce.date().optional(),
+  hours: z.number().optional(),
+  rate: z.number().optional(),
+  notes: z.string().optional(),
+});
+
 const BackupDataSchema = z.object({
   exportDate: z.string(),
-  version: z.string().default("1.0"),
+  version: z.string().default("2.0"),
   user: z.object({
     name: z.string().optional(),
     email: z.string(),
+    prefersReducedMotion: z.boolean().optional(),
+    animationSpeedMultiplier: z.number().optional(),
+    theme: z.string().optional(),
+    onboardingCompletedAt: z.coerce.date().nullable().optional(),
   }),
   clients: z.array(ClientBackupSchema),
   businesses: z.array(BusinessBackupSchema),
   invoices: z.array(InvoiceBackupSchema),
+  invoicePayments: z.array(InvoicePaymentBackupSchema).default([]),
+  invoiceTemplates: z.array(InvoiceTemplateBackupSchema).default([]),
+  recurringInvoices: z.array(RecurringInvoiceBackupSchema).default([]),
+  expenses: z.array(ExpenseBackupSchema).default([]),
+  timeEntries: z.array(TimeEntryBackupSchema).default([]),
 });
 
 export const settingsRouter = createTRPCRouter({
@@ -162,10 +254,43 @@ export const settingsRouter = createTRPCRouter({
         email: true,
         image: true,
         role: true,
+        onboardingCompletedAt: true,
       },
     });
 
     return user;
+  }),
+
+  getOnboardingStatus: protectedProcedure.query(async ({ ctx }) => {
+    const user = await ctx.db.query.users.findFirst({
+      where: eq(users.id, ctx.session.user.id),
+      columns: {
+        onboardingCompletedAt: true,
+      },
+    });
+
+    const [businessCount, clientCount] = await Promise.all([
+      ctx.db.$count(
+        businesses,
+        eq(businesses.createdById, ctx.session.user.id),
+      ),
+      ctx.db.$count(clients, eq(clients.createdById, ctx.session.user.id)),
+    ]);
+
+    return {
+      completed: user?.onboardingCompletedAt != null,
+      businessCount,
+      clientCount,
+    };
+  }),
+
+  completeOnboarding: protectedProcedure.mutation(async ({ ctx }) => {
+    await ctx.db
+      .update(users)
+      .set({ onboardingCompletedAt: new Date() })
+      .where(eq(users.id, ctx.session.user.id));
+
+    return { success: true };
   }),
 
   // Get animation preferences
@@ -220,64 +345,54 @@ export const settingsRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  // Get theme preferences
-  getTheme: publicProcedure.query(async ({ ctx }) => {
+  getColorMode: protectedProcedure.query(async ({ ctx }) => {
+    const user = await ctx.db.query.users.findFirst({
+      where: eq(users.id, ctx.session.user.id),
+      columns: { theme: true },
+    });
+
+    return {
+      colorMode: (user?.theme as ColorMode) ?? defaultColorMode,
+    };
+  }),
+
+  updateColorMode: protectedProcedure
+    .input(
+      z.object({
+        colorMode: colorModeSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .update(users)
+        .set({ theme: input.colorMode })
+        .where(eq(users.id, ctx.session.user.id));
+
+      return { success: true };
+    }),
+
+  getPdfSettings: publicProcedure.query(async ({ ctx }) => {
     const settings = await ctx.db.query.platformSettings.findFirst({
       where: eq(platformSettings.id, "global"),
     });
 
     return {
-      colorTheme:
-        (settings?.colorTheme as ColorTheme) ?? fallbackAppearance.colorTheme,
-      customColor: settings?.customColor ?? undefined,
-      theme: (settings?.theme as ColorMode) ?? fallbackAppearance.colorMode,
-      interfaceTheme:
-        (settings?.interfaceTheme as InterfaceTheme) ?? defaultInterfaceTheme,
-      bodyFontPreference:
-        (settings?.bodyFontPreference as FontPreference) ??
-        defaultBodyFontPreference,
-      headingFontPreference:
-        (settings?.headingFontPreference as FontPreference) ??
-        defaultHeadingFontPreference,
-      radiusPreference:
-        (settings?.radiusPreference as RadiusPreference) ??
-        defaultRadiusPreference,
-      sidebarStyle:
-        (settings?.sidebarStyle as SidebarStyle) ?? defaultSidebarStyle,
-      brandName: settings?.brandName ?? fallbackAppearance.brandName,
-      brandTagline: settings?.brandTagline ?? fallbackAppearance.brandTagline,
-      brandLogoText:
-        settings?.brandLogoText ?? fallbackAppearance.brandLogoText,
-      brandIcon: settings?.brandIcon ?? fallbackAppearance.brandIcon,
       pdfTemplate:
         (settings?.pdfTemplate as "classic" | "minimal") ??
-        fallbackAppearance.pdfTemplate,
+        defaultPdfSettings.pdfTemplate,
       pdfAccentColor:
-        settings?.pdfAccentColor ?? fallbackAppearance.pdfAccentColor,
+        settings?.pdfAccentColor ?? defaultPdfSettings.pdfAccentColor,
       pdfFooterText:
-        settings?.pdfFooterText ?? fallbackAppearance.pdfFooterText,
-      pdfShowLogo: settings?.pdfShowLogo ?? fallbackAppearance.pdfShowLogo,
+        settings?.pdfFooterText ?? defaultPdfSettings.pdfFooterText,
+      pdfShowLogo: settings?.pdfShowLogo ?? defaultPdfSettings.pdfShowLogo,
       pdfShowPageNumbers:
-        settings?.pdfShowPageNumbers ?? fallbackAppearance.pdfShowPageNumbers,
+        settings?.pdfShowPageNumbers ?? defaultPdfSettings.pdfShowPageNumbers,
     };
   }),
 
-  // Update theme preferences
-  updateTheme: protectedProcedure
+  updatePdfSettings: protectedProcedure
     .input(
       z.object({
-        colorTheme: colorThemeSchema.optional(),
-        customColor: hslChannelsSchema.optional(),
-        theme: colorModeSchema.optional(),
-        interfaceTheme: interfaceThemeSchema.optional(),
-        bodyFontPreference: fontPreferenceSchema.optional(),
-        headingFontPreference: fontPreferenceSchema.optional(),
-        radiusPreference: radiusPreferenceSchema.optional(),
-        sidebarStyle: sidebarStyleSchema.optional(),
-        brandName: z.string().min(1).max(100).optional(),
-        brandTagline: z.string().min(1).max(255).optional(),
-        brandLogoText: z.string().min(1).max(100).optional(),
-        brandIcon: z.string().min(1).max(20).optional(),
         pdfTemplate: pdfTemplateSchema.optional(),
         pdfAccentColor: z.string().min(4).max(50).optional(),
         pdfFooterText: z.string().min(1).max(120).optional(),
@@ -291,57 +406,18 @@ export const settingsRouter = createTRPCRouter({
         .insert(platformSettings)
         .values({
           id: "global",
-          brandName: input.brandName ?? fallbackAppearance.brandName,
-          brandTagline: input.brandTagline ?? fallbackAppearance.brandTagline,
-          brandLogoText:
-            input.brandLogoText ?? fallbackAppearance.brandLogoText,
-          brandIcon: input.brandIcon ?? fallbackAppearance.brandIcon,
-          colorTheme: input.colorTheme ?? fallbackAppearance.colorTheme,
-          customColor: input.customColor,
-          theme: input.theme ?? fallbackAppearance.colorMode,
-          interfaceTheme: input.interfaceTheme ?? defaultInterfaceTheme,
-          bodyFontPreference:
-            input.bodyFontPreference ?? defaultBodyFontPreference,
-          headingFontPreference:
-            input.headingFontPreference ?? defaultHeadingFontPreference,
-          radiusPreference: input.radiusPreference ?? defaultRadiusPreference,
-          sidebarStyle: input.sidebarStyle ?? defaultSidebarStyle,
-          pdfTemplate: input.pdfTemplate ?? fallbackAppearance.pdfTemplate,
+          pdfTemplate: input.pdfTemplate ?? defaultPdfSettings.pdfTemplate,
           pdfAccentColor:
-            input.pdfAccentColor ?? fallbackAppearance.pdfAccentColor,
+            input.pdfAccentColor ?? defaultPdfSettings.pdfAccentColor,
           pdfFooterText:
-            input.pdfFooterText ?? fallbackAppearance.pdfFooterText,
-          pdfShowLogo: input.pdfShowLogo ?? fallbackAppearance.pdfShowLogo,
+            input.pdfFooterText ?? defaultPdfSettings.pdfFooterText,
+          pdfShowLogo: input.pdfShowLogo ?? defaultPdfSettings.pdfShowLogo,
           pdfShowPageNumbers:
-            input.pdfShowPageNumbers ?? fallbackAppearance.pdfShowPageNumbers,
+            input.pdfShowPageNumbers ?? defaultPdfSettings.pdfShowPageNumbers,
         })
         .onConflictDoUpdate({
           target: platformSettings.id,
           set: {
-            ...(input.brandName && { brandName: input.brandName }),
-            ...(input.brandTagline && { brandTagline: input.brandTagline }),
-            ...(input.brandLogoText && {
-              brandLogoText: input.brandLogoText,
-            }),
-            ...(input.brandIcon && { brandIcon: input.brandIcon }),
-            ...(input.colorTheme && { colorTheme: input.colorTheme }),
-            ...(input.customColor !== undefined && {
-              customColor: input.customColor,
-            }),
-            ...(input.theme && { theme: input.theme }),
-            ...(input.interfaceTheme && {
-              interfaceTheme: input.interfaceTheme,
-            }),
-            ...(input.bodyFontPreference && {
-              bodyFontPreference: input.bodyFontPreference,
-            }),
-            ...(input.headingFontPreference && {
-              headingFontPreference: input.headingFontPreference,
-            }),
-            ...(input.radiusPreference && {
-              radiusPreference: input.radiusPreference,
-            }),
-            ...(input.sidebarStyle && { sidebarStyle: input.sidebarStyle }),
             ...(input.pdfTemplate && { pdfTemplate: input.pdfTemplate }),
             ...(input.pdfAccentColor && {
               pdfAccentColor: input.pdfAccentColor,
@@ -469,20 +545,21 @@ export const settingsRouter = createTRPCRouter({
   exportData: protectedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
 
-    // Get user info
     const user = await ctx.db.query.users.findFirst({
       where: eq(users.id, userId),
       columns: {
         name: true,
         email: true,
+        prefersReducedMotion: true,
+        animationSpeedMultiplier: true,
+        theme: true,
+        onboardingCompletedAt: true,
       },
     });
 
-    // Get all clients
     const userClients = await ctx.db.query.clients.findMany({
       where: eq(clients.createdById, userId),
       columns: {
-        id: true,
         name: true,
         email: true,
         phone: true,
@@ -492,14 +569,14 @@ export const settingsRouter = createTRPCRouter({
         state: true,
         postalCode: true,
         country: true,
+        defaultHourlyRate: true,
+        currency: true,
       },
     });
 
-    // Get all businesses
     const userBusinesses = await ctx.db.query.businesses.findMany({
       where: eq(businesses.createdById, userId),
       columns: {
-        id: true,
         name: true,
         nickname: true,
         email: true,
@@ -514,24 +591,27 @@ export const settingsRouter = createTRPCRouter({
         taxId: true,
         logoUrl: true,
         isDefault: true,
+        resendApiKey: true,
+        resendDomain: true,
+        emailFromName: true,
       },
     });
 
-    // Get all invoices with their items
+    const userInvoiceTemplates = await ctx.db.query.invoiceTemplates.findMany({
+      where: eq(invoiceTemplates.createdById, userId),
+      columns: {
+        name: true,
+        type: true,
+        content: true,
+        isDefault: true,
+      },
+    });
+
     const userInvoices = await ctx.db.query.invoices.findMany({
       where: eq(invoices.createdById, userId),
       with: {
-        client: {
-          columns: {
-            name: true,
-          },
-        },
-        business: {
-          columns: {
-            name: true,
-            nickname: true,
-          },
-        },
+        client: { columns: { name: true } },
+        business: { columns: { name: true, nickname: true } },
         items: {
           columns: {
             date: true,
@@ -555,13 +635,61 @@ export const settingsRouter = createTRPCRouter({
       ],
     });
 
-    // Format the data for export
-    const backupData = {
+    const userPayments = await ctx.db.query.invoicePayments.findMany({
+      where: eq(invoicePayments.createdById, userId),
+      with: {
+        invoice: { columns: { invoiceNumber: true } },
+      },
+    });
+
+    const userRecurringInvoices = await ctx.db.query.recurringInvoices.findMany({
+      where: eq(recurringInvoices.createdById, userId),
+      with: {
+        client: { columns: { name: true } },
+        business: { columns: { name: true, nickname: true } },
+        items: {
+          columns: {
+            description: true,
+            hours: true,
+            rate: true,
+            position: true,
+          },
+          orderBy: (items, { asc }) => [
+            asc(items.position),
+            asc(items.createdAt),
+          ],
+        },
+      },
+    });
+
+    const userExpenses = await ctx.db.query.expenses.findMany({
+      where: eq(expenses.createdById, userId),
+      with: {
+        client: { columns: { name: true } },
+        business: { columns: { name: true, nickname: true } },
+        invoice: { columns: { invoiceNumber: true } },
+      },
+    });
+
+    const userTimeEntries = await ctx.db.query.timeEntries.findMany({
+      where: eq(timeEntries.createdById, userId),
+      with: {
+        client: { columns: { name: true } },
+        invoice: { columns: { invoiceNumber: true } },
+      },
+      orderBy: (entries, { asc }) => [asc(entries.startedAt)],
+    });
+
+    return {
       exportDate: new Date().toISOString(),
-      version: "1.0",
+      version: "2.0",
       user: {
         name: user?.name ?? "",
         email: user?.email ?? "",
+        prefersReducedMotion: user?.prefersReducedMotion ?? false,
+        animationSpeedMultiplier: user?.animationSpeedMultiplier ?? 1,
+        theme: user?.theme ?? "system",
+        onboardingCompletedAt: user?.onboardingCompletedAt ?? null,
       },
       clients: userClients.map((client) => ({
         name: client.name,
@@ -573,6 +701,8 @@ export const settingsRouter = createTRPCRouter({
         state: client.state ?? undefined,
         postalCode: client.postalCode ?? undefined,
         country: client.country ?? undefined,
+        defaultHourlyRate: client.defaultHourlyRate ?? undefined,
+        currency: client.currency,
       })),
       businesses: userBusinesses.map((business) => ({
         name: business.name,
@@ -589,24 +719,82 @@ export const settingsRouter = createTRPCRouter({
         taxId: business.taxId ?? undefined,
         logoUrl: business.logoUrl ?? undefined,
         isDefault: business.isDefault ?? false,
+        resendApiKey: business.resendApiKey ?? undefined,
+        resendDomain: business.resendDomain ?? undefined,
+        emailFromName: business.emailFromName ?? undefined,
+      })),
+      invoiceTemplates: userInvoiceTemplates.map((template) => ({
+        name: template.name,
+        type: template.type,
+        content: template.content,
+        isDefault: template.isDefault,
       })),
       invoices: userInvoices.map((invoice) => ({
         invoiceNumber: invoice.invoiceNumber,
+        invoicePrefix: invoice.invoicePrefix ?? "#",
         businessName: invoice.business?.name,
-        businessNickname: invoice.business?.nickname,
+        businessNickname: invoice.business?.nickname ?? undefined,
         clientName: invoice.client.name,
         issueDate: invoice.issueDate,
         dueDate: invoice.dueDate,
         status: invoice.status,
         totalAmount: invoice.totalAmount,
         taxRate: invoice.taxRate,
+        currency: invoice.currency,
         notes: invoice.notes ?? undefined,
         emailMessage: invoice.emailMessage ?? undefined,
         items: invoice.items,
       })),
+      invoicePayments: userPayments.map((payment) => ({
+        invoiceNumber: payment.invoice.invoiceNumber,
+        amount: payment.amount,
+        currency: payment.currency,
+        date: payment.date,
+        method: payment.method,
+        notes: payment.notes ?? undefined,
+      })),
+      recurringInvoices: userRecurringInvoices.map((recurring) => ({
+        name: recurring.name,
+        clientName: recurring.client.name,
+        businessName: recurring.business?.name,
+        businessNickname: recurring.business?.nickname ?? undefined,
+        schedule: recurring.schedule,
+        status: recurring.status,
+        invoicePrefix: recurring.invoicePrefix ?? "#",
+        taxRate: recurring.taxRate,
+        currency: recurring.currency,
+        notes: recurring.notes ?? undefined,
+        emailMessage: recurring.emailMessage ?? undefined,
+        nextDueAt: recurring.nextDueAt,
+        lastGeneratedAt: recurring.lastGeneratedAt ?? undefined,
+        items: recurring.items,
+      })),
+      expenses: userExpenses.map((expense) => ({
+        clientName: expense.client?.name,
+        businessName: expense.business?.name,
+        businessNickname: expense.business?.nickname ?? undefined,
+        invoiceNumber: expense.invoice?.invoiceNumber,
+        date: expense.date,
+        description: expense.description,
+        amount: expense.amount,
+        currency: expense.currency,
+        category: expense.category ?? undefined,
+        billable: expense.billable,
+        reimbursable: expense.reimbursable,
+        taxDeductible: expense.taxDeductible,
+        notes: expense.notes ?? undefined,
+      })),
+      timeEntries: userTimeEntries.map((entry) => ({
+        description: entry.description,
+        clientName: entry.client?.name,
+        invoiceNumber: entry.invoice?.invoiceNumber,
+        startedAt: entry.startedAt,
+        endedAt: entry.endedAt ?? undefined,
+        hours: entry.hours ?? undefined,
+        rate: entry.rate ?? undefined,
+        notes: entry.notes ?? undefined,
+      })),
     };
-
-    return backupData;
   }),
 
   // Import user data (restore)
@@ -615,101 +803,282 @@ export const settingsRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.session.user.id;
 
-      return await ctx.db.transaction(async (tx) => {
-        // Create a map to track old to new client IDs
-        const clientIdMap = new Map<string, string>();
-        const businessIdMap = new Map<string, string>();
+      try {
+        return await ctx.db.transaction(async (tx) => {
+          const clientIdMap = new Map<string, string>();
+          const businessIdMap = new Map<string, string>();
+          const invoiceIdMap = new Map<string, string>();
 
-        // Import clients
-        for (const clientData of input.clients) {
-          const [newClient] = await tx
-            .insert(clients)
-            .values({
-              ...clientData,
-              createdById: userId,
-            })
-            .returning({ id: clients.id });
+          for (const clientData of input.clients) {
+            const [newClient] = await tx
+              .insert(clients)
+              .values({
+                ...clientData,
+                createdById: userId,
+              })
+              .returning({ id: clients.id });
 
-          if (newClient) {
-            clientIdMap.set(clientData.name, newClient.id);
-          }
-        }
-
-        // Import businesses
-        for (const businessData of input.businesses) {
-          const [newBusiness] = await tx
-            .insert(businesses)
-            .values({
-              ...businessData,
-              createdById: userId,
-            })
-            .returning({ id: businesses.id });
-
-          if (newBusiness) {
-            businessIdMap.set(businessData.name, newBusiness.id);
-            if (businessData.nickname) {
-              businessIdMap.set(businessData.nickname, newBusiness.id);
+            if (newClient) {
+              clientIdMap.set(clientData.name, newClient.id);
             }
           }
-        }
 
-        // Import invoices
-        for (const invoiceData of input.invoices) {
-          const clientId = clientIdMap.get(invoiceData.clientName);
-          if (!clientId) {
-            throw new Error(`Client ${invoiceData.clientName} not found`);
+          for (const businessData of input.businesses) {
+            const [newBusiness] = await tx
+              .insert(businesses)
+              .values({
+                ...businessData,
+                createdById: userId,
+              })
+              .returning({ id: businesses.id });
+
+            if (newBusiness) {
+              businessIdMap.set(businessData.name, newBusiness.id);
+              if (businessData.nickname) {
+                businessIdMap.set(businessData.nickname, newBusiness.id);
+              }
+            }
           }
 
-          const businessId = invoiceData.businessNickname
-            ? (businessIdMap.get(invoiceData.businessNickname) ??
-              (invoiceData.businessName
-                ? (businessIdMap.get(invoiceData.businessName) ?? null)
-                : null))
-            : invoiceData.businessName
-              ? (businessIdMap.get(invoiceData.businessName) ?? null)
-              : null;
-
-          const [newInvoice] = await tx
-            .insert(invoices)
-            .values({
-              invoiceNumber: invoiceData.invoiceNumber,
-              businessId,
-              clientId,
-              issueDate: invoiceData.issueDate,
-              dueDate: invoiceData.dueDate,
-              status: invoiceData.status,
-              totalAmount: invoiceData.totalAmount,
-              taxRate: invoiceData.taxRate,
-              notes: invoiceData.notes,
-              emailMessage: invoiceData.emailMessage,
+          for (const templateData of input.invoiceTemplates) {
+            await tx.insert(invoiceTemplates).values({
+              ...templateData,
               createdById: userId,
-            })
-            .returning({ id: invoices.id });
-
-          if (newInvoice && invoiceData.items.length > 0) {
-            // Import invoice items
-            await tx.insert(invoiceItems).values(
-              invoiceData.items.map((item) => ({
-                ...item,
-                invoiceId: newInvoice.id,
-              })),
-            );
+            });
           }
-        }
 
-        return {
-          success: true,
-          imported: {
-            clients: input.clients.length,
-            businesses: input.businesses.length,
-            invoices: input.invoices.length,
-            items: input.invoices.reduce(
-              (sum, inv) => sum + inv.items.length,
-              0,
+          for (const invoiceData of input.invoices) {
+            const clientId = clientIdMap.get(invoiceData.clientName);
+            if (!clientId) {
+              backupImportError(
+                `Client "${invoiceData.clientName}" not found for invoice ${invoiceData.invoiceNumber}`,
+              );
+            }
+
+            const businessId = resolveBusinessId(invoiceData, businessIdMap);
+
+            const [newInvoice] = await tx
+              .insert(invoices)
+              .values({
+                invoiceNumber: invoiceData.invoiceNumber,
+                invoicePrefix: invoiceData.invoicePrefix,
+                businessId,
+                clientId,
+                issueDate: invoiceData.issueDate,
+                dueDate: invoiceData.dueDate,
+                status: invoiceData.status,
+                totalAmount: invoiceData.totalAmount,
+                taxRate: invoiceData.taxRate,
+                currency: invoiceData.currency,
+                notes: invoiceData.notes,
+                emailMessage: invoiceData.emailMessage,
+                createdById: userId,
+              })
+              .returning({ id: invoices.id });
+
+            if (newInvoice) {
+              invoiceIdMap.set(invoiceData.invoiceNumber, newInvoice.id);
+
+              if (invoiceData.items.length > 0) {
+                await tx.insert(invoiceItems).values(
+                  invoiceData.items.map((item) => ({
+                    ...item,
+                    invoiceId: newInvoice.id,
+                  })),
+                );
+              }
+            }
+          }
+
+          for (const paymentData of input.invoicePayments) {
+            const invoiceId = invoiceIdMap.get(paymentData.invoiceNumber);
+            if (!invoiceId) {
+              backupImportError(
+                `Invoice "${paymentData.invoiceNumber}" not found for payment`,
+              );
+            }
+
+            await tx.insert(invoicePayments).values({
+              invoiceId,
+              amount: paymentData.amount,
+              currency: paymentData.currency,
+              date: paymentData.date,
+              method: paymentData.method,
+              notes: paymentData.notes,
+              createdById: userId,
+            });
+          }
+
+          for (const recurringData of input.recurringInvoices) {
+            const clientId = clientIdMap.get(recurringData.clientName);
+            if (!clientId) {
+              backupImportError(
+                `Client "${recurringData.clientName}" not found for recurring invoice "${recurringData.name}"`,
+              );
+            }
+
+            const businessId = resolveBusinessId(recurringData, businessIdMap);
+
+            const [newRecurring] = await tx
+              .insert(recurringInvoices)
+              .values({
+                name: recurringData.name,
+                clientId,
+                businessId,
+                schedule: recurringData.schedule,
+                status: recurringData.status,
+                invoicePrefix: recurringData.invoicePrefix,
+                taxRate: recurringData.taxRate,
+                currency: recurringData.currency,
+                notes: recurringData.notes,
+                emailMessage: recurringData.emailMessage,
+                nextDueAt: recurringData.nextDueAt,
+                lastGeneratedAt: recurringData.lastGeneratedAt,
+                createdById: userId,
+              })
+              .returning({ id: recurringInvoices.id });
+
+            if (newRecurring && recurringData.items.length > 0) {
+              await tx.insert(recurringInvoiceItems).values(
+                recurringData.items.map((item) => ({
+                  ...item,
+                  recurringInvoiceId: newRecurring.id,
+                })),
+              );
+            }
+          }
+
+          for (const expenseData of input.expenses) {
+            const clientId = expenseData.clientName
+              ? (clientIdMap.get(expenseData.clientName) ?? null)
+              : null;
+            if (expenseData.clientName && !clientId) {
+              backupImportError(
+                `Client "${expenseData.clientName}" not found for expense "${expenseData.description}"`,
+              );
+            }
+
+            const businessId = resolveBusinessId(expenseData, businessIdMap);
+            const invoiceId = expenseData.invoiceNumber
+              ? (invoiceIdMap.get(expenseData.invoiceNumber) ?? null)
+              : null;
+            if (expenseData.invoiceNumber && !invoiceId) {
+              backupImportError(
+                `Invoice "${expenseData.invoiceNumber}" not found for expense "${expenseData.description}"`,
+              );
+            }
+
+            await tx.insert(expenses).values({
+              clientId,
+              businessId,
+              invoiceId,
+              date: expenseData.date,
+              description: expenseData.description,
+              amount: expenseData.amount,
+              currency: expenseData.currency,
+              category: expenseData.category,
+              billable: expenseData.billable,
+              reimbursable: expenseData.reimbursable,
+              taxDeductible: expenseData.taxDeductible,
+              notes: expenseData.notes,
+              createdById: userId,
+            });
+          }
+
+          const existingRunningEntry = await tx.query.timeEntries.findFirst({
+            where: and(
+              eq(timeEntries.createdById, userId),
+              isNull(timeEntries.endedAt),
             ),
-          },
-        };
-      });
+            columns: { id: true },
+          });
+
+          for (const entryData of input.timeEntries) {
+            const clientId = entryData.clientName
+              ? (clientIdMap.get(entryData.clientName) ?? null)
+              : null;
+            if (entryData.clientName && !clientId) {
+              backupImportError(
+                `Client "${entryData.clientName}" not found for time entry`,
+              );
+            }
+
+            const invoiceId = entryData.invoiceNumber
+              ? (invoiceIdMap.get(entryData.invoiceNumber) ?? null)
+              : null;
+            if (entryData.invoiceNumber && !invoiceId) {
+              backupImportError(
+                `Invoice "${entryData.invoiceNumber}" not found for time entry`,
+              );
+            }
+
+            const isRunningImport = entryData.endedAt == null;
+            const endedAt =
+              isRunningImport && existingRunningEntry
+                ? entryData.startedAt
+                : entryData.endedAt;
+
+            await tx.insert(timeEntries).values({
+              description: entryData.description,
+              clientId,
+              invoiceId,
+              startedAt: entryData.startedAt,
+              endedAt,
+              hours: entryData.hours,
+              rate: entryData.rate,
+              notes: entryData.notes,
+              createdById: userId,
+            });
+          }
+
+          await tx
+            .update(users)
+            .set({
+              ...(input.user.prefersReducedMotion !== undefined && {
+                prefersReducedMotion: input.user.prefersReducedMotion,
+              }),
+              ...(input.user.animationSpeedMultiplier !== undefined && {
+                animationSpeedMultiplier: input.user.animationSpeedMultiplier,
+              }),
+              ...(input.user.theme !== undefined && { theme: input.user.theme }),
+              ...(input.user.onboardingCompletedAt !== undefined && {
+                onboardingCompletedAt: input.user.onboardingCompletedAt,
+              }),
+            })
+            .where(eq(users.id, userId));
+
+          return {
+            success: true,
+            imported: {
+              clients: input.clients.length,
+              businesses: input.businesses.length,
+              invoiceTemplates: input.invoiceTemplates.length,
+              invoices: input.invoices.length,
+              invoiceItems: input.invoices.reduce(
+                (sum, inv) => sum + inv.items.length,
+                0,
+              ),
+              invoicePayments: input.invoicePayments.length,
+              recurringInvoices: input.recurringInvoices.length,
+              recurringInvoiceItems: input.recurringInvoices.reduce(
+                (sum, inv) => sum + inv.items.length,
+                0,
+              ),
+              expenses: input.expenses.length,
+              timeEntries: input.timeEntries.length,
+            },
+          };
+        });
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            error instanceof Error ? error.message : "Import failed unexpectedly",
+        });
+      }
     }),
 
   // Get data statistics

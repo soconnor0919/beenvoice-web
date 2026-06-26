@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { api, type RouterOutputs } from "~/trpc/react";
-import { PageHeader } from "~/components/layout/page-header";
+import { DashboardPageHeader } from "~/components/layout/page-header";
+import { DashboardPage } from "~/components/layout/dashboard-page";
+import {
+  PageTabs,
+  PageTabsContent,
+  PageTabsList,
+  PageTabsTrigger,
+} from "~/components/layout/page-tabs";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
@@ -18,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, FileText, Star } from "lucide-react";
 
@@ -187,25 +194,24 @@ export default function TemplatesPage() {
   const termsTemplates = templates.filter((t) => t.type === "terms");
 
   return (
-    <div className="page-enter space-y-6 pb-6">
-      <PageHeader
+    <DashboardPage className="pb-6">
+      <DashboardPageHeader
         title="Invoice Templates"
         description="Reusable notes and payment terms for your invoices"
-        variant="gradient"
       />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "notes" | "terms")}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="notes">
+      <PageTabs value={tab} onValueChange={(v) => setTab(v as "notes" | "terms")}>
+        <PageTabsList>
+          <PageTabsTrigger value="notes">
             <FileText className="mr-1.5 h-4 w-4" /> Notes (
             {notesTemplates.length})
-          </TabsTrigger>
-          <TabsTrigger value="terms">
+          </PageTabsTrigger>
+          <PageTabsTrigger value="terms">
             <FileText className="mr-1.5 h-4 w-4" /> Terms (
             {termsTemplates.length})
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="notes" className="mt-4">
+          </PageTabsTrigger>
+        </PageTabsList>
+        <PageTabsContent value="notes">
           <TemplateList
             items={notesTemplates}
             type="notes"
@@ -214,8 +220,8 @@ export default function TemplatesPage() {
             onEdit={handleEdit}
             onDelete={setDeleteId}
           />
-        </TabsContent>
-        <TabsContent value="terms" className="mt-4">
+        </PageTabsContent>
+        <PageTabsContent value="terms">
           <TemplateList
             items={termsTemplates}
             type="terms"
@@ -224,8 +230,8 @@ export default function TemplatesPage() {
             onEdit={handleEdit}
             onDelete={setDeleteId}
           />
-        </TabsContent>
-      </Tabs>
+        </PageTabsContent>
+      </PageTabs>
 
       {/* Create/Edit dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -320,6 +326,6 @@ export default function TemplatesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </DashboardPage>
   );
 }

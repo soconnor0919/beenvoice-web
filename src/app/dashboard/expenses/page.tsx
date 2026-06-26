@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { api } from "~/trpc/react";
-import { PageHeader } from "~/components/layout/page-header";
+import { DashboardPageHeader } from "~/components/layout/page-header";
+import { DashboardPage, dashboardStatGridClass } from "~/components/layout/dashboard-page";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
@@ -145,11 +146,10 @@ export default function ExpensesPage() {
     .reduce((s, e) => s + e.amount, 0);
 
   return (
-    <div className="page-enter space-y-6 pb-6">
-      <PageHeader
+    <DashboardPage>
+      <DashboardPageHeader
         title="Expenses"
         description="Track billable and non-billable expenses"
-        variant="gradient"
       >
         <Button
           onClick={handleOpen}
@@ -158,10 +158,9 @@ export default function ExpensesPage() {
         >
           <Plus className="mr-2 h-5 w-5" /> Add Expense
         </Button>
-      </PageHeader>
+      </DashboardPageHeader>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className={dashboardStatGridClass}>
         <Card>
           <CardContent className="p-4">
             <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
@@ -476,6 +475,6 @@ export default function ExpensesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </DashboardPage>
   );
 }

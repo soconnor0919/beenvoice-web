@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "~/lib/auth";
+import { getDatabaseSetupErrorMessage } from "~/lib/db-errors";
 import { env } from "~/env";
 import { db } from "~/server/db";
 import { accounts, users } from "~/server/db/schema";
@@ -161,6 +162,12 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error("Registration error:", error);
+
+    const databaseSetupError = getDatabaseSetupErrorMessage(error);
+    if (databaseSetupError) {
+      return NextResponse.json({ error: databaseSetupError }, { status: 503 });
+    }
+
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

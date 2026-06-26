@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { api, HydrateClient } from "~/trpc/server";
 import { Button } from "~/components/ui/button";
-import { PageHeader } from "~/components/layout/page-header";
+import { DashboardPageHeader } from "~/components/layout/page-header";
+import { DashboardPage } from "~/components/layout/dashboard-page";
 import { FileText, Plus, Upload } from "lucide-react";
 import { InvoicesDataTable } from "./_components/invoices-data-table";
 import { DataTableSkeleton } from "~/components/data/data-table";
@@ -16,11 +17,10 @@ async function InvoicesTable() {
 
 export default async function InvoicesPage() {
   return (
-    <div className="page-enter space-y-6">
-      <PageHeader
+    <DashboardPage>
+      <DashboardPageHeader
         title="Invoices"
         description="Manage your invoices and track payments"
-        variant="gradient"
       >
         <Button asChild variant="outline" className="hover-lift shadow-sm">
           <Link href="/dashboard/invoices/import">
@@ -40,13 +40,13 @@ export default async function InvoicesPage() {
             <span>Create Invoice</span>
           </Link>
         </Button>
-      </PageHeader>
+      </DashboardPageHeader>
 
       <HydrateClient>
         <Suspense fallback={<DataTableSkeleton columns={7} rows={5} />}>
           <InvoicesTable />
         </Suspense>
       </HydrateClient>
-    </div>
+    </DashboardPage>
   );
 }

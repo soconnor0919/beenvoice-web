@@ -1,16 +1,16 @@
 import { Suspense } from "react";
 import { HydrateClient } from "~/trpc/server";
-import { PageHeader } from "~/components/layout/page-header";
+import { DashboardPageHeader } from "~/components/layout/page-header";
+import { DashboardPage } from "~/components/layout/dashboard-page";
 import { DataTableSkeleton } from "~/components/data/data-table";
 import { SettingsContent } from "./_components/settings-content";
 
 export default async function SettingsPage() {
   return (
-    <div className="page-enter space-y-6">
-      <PageHeader
+    <DashboardPage>
+      <DashboardPageHeader
         title="Settings"
         description="Manage your account preferences and data"
-        variant="gradient"
       />
 
       <HydrateClient>
@@ -18,6 +18,6 @@ export default async function SettingsPage() {
           <SettingsContent />
         </Suspense>
       </HydrateClient>
-    </div>
+    </DashboardPage>
   );
 }

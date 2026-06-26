@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Badge } from "~/components/ui/badge";
 import { Separator } from "~/components/ui/separator";
 import { Alert, AlertDescription } from "~/components/ui/alert";
@@ -17,7 +16,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
-import { PageHeader } from "~/components/layout/page-header";
+import { DashboardPageHeader } from "~/components/layout/page-header";
+import {
+  DashboardPage,
+  dashboardGapClass,
+  dashboardGridClass,
+} from "~/components/layout/dashboard-page";
+import {
+  PageTabs,
+  PageTabsContent,
+  PageTabsList,
+  PageTabsTrigger,
+} from "~/components/layout/page-tabs";
+import { cn } from "~/lib/utils";
+import { NOREPLY_EMAIL } from "~/lib/app-email";
 import { FloatingActionBar } from "~/components/layout/floating-action-bar";
 import { EmailComposer } from "~/components/forms/email-composer";
 import { EmailPreview } from "~/components/forms/email-preview";
@@ -36,21 +48,20 @@ import {
 
 function SendEmailPageSkeleton() {
   return (
-    <div className="space-y-6 pb-32">
-      <PageHeader
+    <DashboardPage className="pb-32">
+      <DashboardPageHeader
         title="Loading..."
         description="Loading invoice email"
-        variant="gradient"
       />
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
+      <div className={cn(dashboardGridClass, "lg:grid-cols-3")}>
+        <div className={cn("lg:col-span-2", dashboardGapClass, "flex flex-col")}>
           <div className="bg-muted h-96 animate-pulse" />
         </div>
-        <div className="space-y-6">
+        <div className={cn(dashboardGapClass, "flex flex-col")}>
           <div className="bg-muted h-64 animate-pulse" />
         </div>
       </div>
-    </div>
+    </DashboardPage>
   );
 }
 
@@ -280,7 +291,7 @@ export default function SendEmailPage() {
     }
   };
 
-  const fromEmail = invoice?.business?.email ?? "noreply@yourdomain.com";
+  const fromEmail = invoice?.business?.email ?? NOREPLY_EMAIL;
   const toEmail = invoice?.client?.email ?? "";
 
   const canSend =
@@ -292,18 +303,18 @@ export default function SendEmailPage() {
 
   if (!invoice) {
     return (
-      <div className="page-enter space-y-6">
+      <DashboardPage>
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>Invoice not found.</AlertDescription>
         </Alert>
-      </div>
+      </DashboardPage>
     );
   }
 
   return (
-    <div className="page-enter space-y-6 pb-32">
-      <PageHeader
+    <DashboardPage className="pb-32">
+      <DashboardPageHeader
         title={`Send Invoice ${invoice.invoiceNumber}`}
         description={`Compose and send invoice email to ${invoice.client?.name ?? "client"} • ${new Intl.DateTimeFormat(
           "en-US",
@@ -313,7 +324,6 @@ export default function SendEmailPage() {
             day: "numeric",
           },
         ).format(new Date())}`}
-        variant="gradient"
       >
         <Button
           variant="outline"
@@ -322,7 +332,7 @@ export default function SendEmailPage() {
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Invoice
         </Button>
-      </PageHeader>
+      </DashboardPageHeader>
 
       {/* Warning for missing email */}
       {(!toEmail || toEmail.trim() === "") && (
@@ -336,23 +346,22 @@ export default function SendEmailPage() {
       )}
 
       {/* Main Content */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className={cn(dashboardGridClass, "lg:grid-cols-3")}>
         <div className="lg:col-span-2">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="compose" className="flex items-center gap-2">
+          <PageTabs value={activeTab} onValueChange={setActiveTab}>
+            <PageTabsList>
+              <PageTabsTrigger value="compose" className="gap-2">
                 <Edit3 className="h-4 w-4" />
                 Compose
-              </TabsTrigger>
-              <TabsTrigger value="preview" className="flex items-center gap-2">
+              </PageTabsTrigger>
+              <PageTabsTrigger value="preview" className="gap-2">
                 <Eye className="h-4 w-4" />
                 Preview
-              </TabsTrigger>
-            </TabsList>
+              </PageTabsTrigger>
+            </PageTabsList>
 
-            <div className="mt-6">
-              <TabsContent value="compose" className="space-y-6">
-                <Card>
+            <PageTabsContent value="compose">
+              <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Mail className="h-5 w-5" />
@@ -387,10 +396,10 @@ export default function SendEmailPage() {
                     )}
                   </CardContent>
                 </Card>
-              </TabsContent>
+            </PageTabsContent>
 
-              <TabsContent value="preview" className="space-y-6">
-                <Card>
+            <PageTabsContent value="preview">
+              <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Eye className="h-5 w-5" />
@@ -413,13 +422,12 @@ export default function SendEmailPage() {
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
-            </div>
-          </Tabs>
+            </PageTabsContent>
+          </PageTabs>
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        <div className={cn(dashboardGapClass, "flex flex-col")}>
           {/* Invoice Summary */}
           <Card>
             <CardHeader>
@@ -644,6 +652,6 @@ export default function SendEmailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </DashboardPage>
   );
 }

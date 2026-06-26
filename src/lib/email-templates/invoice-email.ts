@@ -1,3 +1,5 @@
+import { getAppUrl } from "~/lib/app-url";
+
 interface InvoiceEmailTemplateProps {
   invoice: {
     invoiceNumber: string;
@@ -44,7 +46,7 @@ export function generateInvoiceEmailTemplate({
   customMessage,
   userName,
   userEmail,
-  baseUrl: _baseUrl = "https://beenvoice.app",
+  baseUrl = getAppUrl(),
 }: InvoiceEmailTemplateProps): { html: string; text: string } {
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat("en-US", {

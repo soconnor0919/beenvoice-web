@@ -13,7 +13,8 @@ import {
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { PageHeader } from "~/components/layout/page-header";
+import { DashboardPageHeader } from "~/components/layout/page-header";
+import { DashboardPage } from "~/components/layout/dashboard-page";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
@@ -358,17 +359,16 @@ export default function RecurringInvoicesPage() {
   const isSubmitting = create.isPending || update.isPending;
 
   return (
-    <div className="page-enter space-y-6 pb-24">
-      <PageHeader
+    <DashboardPage className="pb-24">
+      <DashboardPageHeader
         title="Recurring Invoices"
         description="Schedule automatic invoice generation"
-        variant="gradient"
       >
         <Button onClick={() => { setForm(defaultForm()); setCreateOpen(true); }}>
           <Plus className="mr-2 h-4 w-4" />
           New recurring
         </Button>
-      </PageHeader>
+      </DashboardPageHeader>
 
       {isLoading ? (
         <div className="flex h-48 items-center justify-center">
@@ -529,6 +529,6 @@ export default function RecurringInvoicesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </DashboardPage>
   );
 }

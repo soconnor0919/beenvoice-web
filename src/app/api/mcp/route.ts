@@ -3,6 +3,7 @@ import { z, type ZodType } from "zod";
 
 import { createCaller } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
+import { getAppUrl } from "~/lib/app-url";
 
 export const runtime = "nodejs";
 
@@ -856,7 +857,7 @@ const tools = {
     schema: z.object({ id: z.string(), ttlHours: z.number().positive().optional() }),
     handler: async (input, caller) => {
       const result = await caller.invoices.generatePublicToken(input);
-      const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+      const base = getAppUrl();
       return {
         ...result,
         webUrl: `${base}/i/${result.token}`,

@@ -1,4 +1,5 @@
 import { formatEmailDate } from "src/lib/email-utils";
+import { SUPPORT_EMAIL } from "~/lib/app-email";
 
 interface PasswordResetEmailProps {
   userEmail: string;
@@ -188,7 +189,7 @@ export function generatePasswordResetEmailTemplate({
       </p>
       <p>
         beenvoice - Professional invoicing made simple<br>
-        <a href="mailto:support@beenvoice.com">support@beenvoice.com</a>
+        <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>
       </p>
     </div>
   </div>
@@ -213,7 +214,7 @@ SECURITY INFORMATION:
 
 If you're having trouble with the link, copy and paste the entire URL into your browser's address bar.
 
-If you have any questions or need assistance, please contact our support team at support@beenvoice.com.
+If you have any questions or need assistance, please contact our support team at ${SUPPORT_EMAIL}.
 
 Best regards,
 The beenvoice Team
