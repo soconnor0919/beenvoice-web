@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "~/lib/auth";
 import { getDatabaseSetupErrorMessage } from "~/lib/db-errors";
+import { resolveNewUserRole } from "~/lib/first-admin";
 import { env } from "~/env";
 import { db } from "~/server/db";
 import { accounts, users } from "~/server/db/schema";
@@ -119,12 +120,15 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     await db.transaction(async (tx) => {
+      const role = await resolveNewUserRole(tx);
+
       const [user] = await tx
         .insert(users)
         .values({
           name: `${firstName} ${lastName}`,
           email: normalizedEmail,
           password: hashedPassword,
+          role,
         })
         .returning({ id: users.id });
 

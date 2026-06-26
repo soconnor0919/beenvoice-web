@@ -4,14 +4,33 @@ import { type Metadata } from "next";
 import localFont from "next/font/local";
 
 import { Toaster } from "~/components/ui/sonner";
+import { getAppUrl } from "~/lib/app-url";
 import { brand } from "~/lib/branding";
 
 import { UmamiScript } from "~/components/analytics/umami-script";
 import { BrandBackground } from "~/components/layout/brand-background";
 
+const siteTitle = `${brand.name} - Invoicing Made Simple`;
+
 export const metadata: Metadata = {
-  title: `${brand.name} - Invoicing Made Simple`,
+  metadataBase: new URL(getAppUrl()),
+  title: {
+    default: siteTitle,
+    template: `%s | ${brand.name}`,
+  },
   description: brand.tagline,
+  openGraph: {
+    title: siteTitle,
+    description: brand.tagline,
+    siteName: brand.name,
+    type: "website",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteTitle,
+    description: brand.tagline,
+  },
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 

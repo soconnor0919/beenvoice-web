@@ -1,4 +1,5 @@
-export const DEFAULT_CLOCK_DESCRIPTION = "Professional services";
+/** Stored on entries clocked in before empty descriptions were allowed. */
+export const LEGACY_DEFAULT_CLOCK_DESCRIPTION = "Professional services";
 
 export function resolveEffectiveHourlyRate(
   enteredRate: number,
@@ -21,7 +22,21 @@ export function resolveClockDescription(
   const trimmed = title.trim();
   if (trimmed) return trimmed;
   if (existingDescription?.trim()) return existingDescription.trim();
-  return DEFAULT_CLOCK_DESCRIPTION;
+  return "";
+}
+
+export function formatRunningTimerLabel(description?: string | null): string {
+  const trimmed = description?.trim() ?? "";
+  if (!trimmed || trimmed === LEGACY_DEFAULT_CLOCK_DESCRIPTION) return "Clocked in";
+  return trimmed;
+}
+
+export function resolveBillingDescription(description?: string | null): string {
+  const trimmed = description?.trim() ?? "";
+  if (!trimmed || trimmed === LEGACY_DEFAULT_CLOCK_DESCRIPTION) {
+    return LEGACY_DEFAULT_CLOCK_DESCRIPTION;
+  }
+  return trimmed;
 }
 
 export type ClockOutOutcome =

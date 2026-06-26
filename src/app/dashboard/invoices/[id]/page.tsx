@@ -20,7 +20,7 @@ import {
   User,
 } from "lucide-react";
 import Link from "next/link";
-import { notFound, useParams, useRouter } from "next/navigation";
+import { notFound, useParams, useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { StatusBadge } from "~/components/data/status-badge";
@@ -89,6 +89,7 @@ function daysSince(date: Date) {
 
 function InvoiceViewContent({ invoiceId }: { invoiceId: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
@@ -105,6 +106,13 @@ function InvoiceViewContent({ invoiceId }: { invoiceId: string }) {
   const { data: payments, isLoading: paymentsLoading } =
     api.payments.getByInvoice.useQuery({ invoiceId });
   const utils = api.useUtils();
+
+  useEffect(() => {
+    if (searchParams.get("editBlocked") === "1") {
+      toast.error("Only draft invoices can be edited");
+      router.replace(`/dashboard/invoices/${invoiceId}`);
+    }
+  }, [searchParams, invoiceId, router]);
 
   const invalidate = () => {
     void utils.invoices.getById.invalidate({ id: invoiceId });
@@ -236,12 +244,14 @@ function InvoiceViewContent({ invoiceId }: { invoiceId: string }) {
         description="View and manage invoice information"
       >
         <PDFDownloadButton invoiceId={invoice.id} variant="outline" className="hover-lift" />
-        <Button asChild variant="default" className="hover-lift">
-          <Link href={`/dashboard/invoices/${invoice.id}/edit`}>
-            <Edit className="mr-2 h-5 w-5" />
-            Edit
-          </Link>
-        </Button>
+        {storedStatus === "draft" ? (
+          <Button asChild variant="default" className="hover-lift">
+            <Link href={`/dashboard/invoices/${invoice.id}/edit`}>
+              <Edit className="mr-2 h-5 w-5" />
+              Edit
+            </Link>
+          </Button>
+        ) : null}
       </DashboardPageHeader>
 
       <div className={cn(dashboardGridClass, "lg:grid-cols-3")}>
@@ -549,12 +559,14 @@ function InvoiceViewContent({ invoiceId }: { invoiceId: string }) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button asChild variant="secondary" className="w-full">
-                <Link href={`/dashboard/invoices/${invoice.id}/edit`}>
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit Invoice
-                </Link>
-              </Button>
+              {storedStatus === "draft" ? (
+                <Button asChild variant="secondary" className="w-full">
+                  <Link href={`/dashboard/invoices/${invoice.id}/edit`}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit Invoice
+                  </Link>
+                </Button>
+              ) : null}
 
               {invoice.items && invoice.client && (
                 <PDFDownloadButton invoiceId={invoice.id} className="w-full" variant="secondary" />

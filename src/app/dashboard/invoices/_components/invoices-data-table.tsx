@@ -31,6 +31,7 @@ import {
   CheckCircle,
   Send,
   ChevronDown,
+  Plus,
 } from "lucide-react";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
@@ -266,16 +267,30 @@ export function InvoicesDataTable({ invoices }: InvoicesDataTableProps) {
                 <Eye className="h-3.5 w-3.5" />
               </Button>
             </Link>
-            <Link href={`/dashboard/invoices/${invoice.id}/edit`}>
+            {invoice.status === "draft" ? (
+              <Link href={`/dashboard/invoices/${invoice.id}/edit`}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="hover-scale h-8 w-8 p-0"
+                  data-action-button="true"
+                  title="Edit invoice"
+                >
+                  <Edit className="h-3.5 w-3.5" />
+                </Button>
+              </Link>
+            ) : (
               <Button
                 variant="ghost"
                 size="sm"
                 className="hover-scale h-8 w-8 p-0"
                 data-action-button="true"
+                disabled
+                title="Only draft invoices can be edited"
               >
                 <Edit className="h-3.5 w-3.5" />
               </Button>
-            </Link>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -322,6 +337,17 @@ export function InvoicesDataTable({ invoices }: InvoicesDataTableProps) {
         searchPlaceholder="Search invoices..."
         initialSorting={[{ id: "issueDate", desc: true }]}
         filterableColumns={filterableColumns}
+        emptyTitle="Create your first invoice"
+        emptyDescription="Send professional invoices and track payments from one place."
+        emptyIcon={<FileText className="h-6 w-6" />}
+        emptyAction={
+          <Button asChild>
+            <Link href="/dashboard/invoices/new">
+              <Plus className="mr-2 h-4 w-4" />
+              Create invoice
+            </Link>
+          </Button>
+        }
         onRowClick={(invoice) =>
           router.push(`/dashboard/invoices/${invoice.id}`)
         }

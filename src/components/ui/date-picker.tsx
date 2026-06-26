@@ -14,17 +14,22 @@ import {
 } from "~/components/ui/popover";
 import { cn } from "~/lib/utils";
 
+const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+};
+
 function formatDate(date: Date | undefined) {
   if (!date) {
     return "";
   }
 
-  return date.toLocaleDateString("en-US", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
+  return date.toLocaleDateString("en-US", DATE_FORMAT_OPTIONS);
 }
+
+// Longest month name in en-US long format (September 30, 2026).
+const LONGEST_FORMATTED_DATE = formatDate(new Date(2026, 8, 30));
 
 interface DatePickerProps {
   date?: Date;
@@ -57,13 +62,7 @@ export function DatePicker({
     lg: "h-10 text-sm",
   };
 
-  const inputWidthClass = className?.includes("w-full")
-    ? "w-full"
-    : className?.includes("w-32") ||
-        className?.includes("w-28") ||
-        className?.includes("w-36")
-      ? className
-      : "w-full md:w-32 md:min-w-32";
+  const wantsFullWidth = className?.includes("w-full");
 
   React.useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Keep text input and calendar month synchronized with the controlled date prop.
@@ -72,16 +71,31 @@ export function DatePicker({
   }, [date]);
 
   return (
-    <div className={cn("relative flex gap-2", inputWidthClass, className)}>
+    <div
+      className={cn(
+        "relative min-w-max",
+        wantsFullWidth ? "w-full" : "w-auto shrink-0",
+        className,
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "invisible block whitespace-nowrap px-3 pr-10",
+          sizeClasses[size],
+          inputClassName,
+        )}
+      >
+        {LONGEST_FORMATTED_DATE}
+      </span>
       <Input
         id={id}
         value={value}
         placeholder={placeholder}
         disabled={disabled}
         className={cn(
-          "bg-background pr-10",
+          "bg-background absolute inset-0 w-full pr-10 tabular-nums",
           sizeClasses[size],
-          "w-full",
           inputClassName,
         )}
         onChange={(e) => {

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "~/components/ui/button";
 import { DataTable, DataTableColumnHeader } from "~/components/data/data-table";
-import { UserPlus, Pencil, Trash2 } from "lucide-react";
+import { UserPlus, Pencil, Trash2, Plus, Users } from "lucide-react";
 import { useState } from "react";
 import {
   Dialog,
@@ -179,6 +179,17 @@ export function ClientsDataTable({
         data={clients}
         searchKey="name"
         searchPlaceholder="Search clients..."
+        emptyTitle="Create your first client"
+        emptyDescription="Add clients to bill them and keep contact details in one place."
+        emptyIcon={<Users className="h-6 w-6" />}
+        emptyAction={
+          <Button asChild>
+            <Link href="/dashboard/clients/new">
+              <Plus className="mr-2 h-4 w-4" />
+              Add client
+            </Link>
+          </Button>
+        }
         onRowClick={handleRowClick}
       />
 

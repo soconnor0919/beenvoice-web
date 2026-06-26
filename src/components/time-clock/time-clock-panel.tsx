@@ -20,7 +20,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "~/components/ui/collapsible";
-import { ChevronDown, Clock, ExternalLink, Play, Square } from "lucide-react";
+import { ChevronDown, Clock, Play, Square } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "~/lib/utils";
 import {
@@ -30,6 +30,7 @@ import {
 import {
   describeClockOutOutcome,
   formatElapsedSeconds,
+  formatRunningTimerLabel,
   resolveClockDescription,
   resolveEffectiveHourlyRate,
   startedAtFromMinutesAgo,
@@ -50,6 +51,19 @@ function invoiceLabel(inv: {
   invoiceNumber: string;
 }) {
   return `${inv.invoicePrefix ?? "#"}${inv.invoiceNumber}`;
+}
+
+function entryHref(entry: {
+  invoiceId: string | null;
+  clientId: string | null;
+  invoice?: { id: string } | null;
+  client?: { id: string } | null;
+}): string | null {
+  const invoiceId = entry.invoiceId ?? entry.invoice?.id;
+  if (invoiceId) return `/dashboard/invoices/${invoiceId}`;
+  const clientId = entry.clientId ?? entry.client?.id;
+  if (clientId) return `/dashboard/clients/${clientId}`;
+  return null;
 }
 
 function ClientChip({
@@ -278,8 +292,7 @@ export function TimeClockPanel({
   }
 
   const displayRate = running ? (running.rate ?? 0) : rate;
-  const runningTitle =
-    running?.description?.trim() ?? resolveClockDescription("");
+  const runningTitle = formatRunningTimerLabel(running?.description);
 
   return (
     <div className={compact ? "space-y-4" : "space-y-6"}>
@@ -478,7 +491,11 @@ export function TimeClockPanel({
                 id="clock-stop-note"
                 value={stopNote}
                 onChange={(e) => setStopNote(e.target.value)}
-                placeholder={running?.description || "Update description when you stop"}
+                placeholder={
+                  running?.description?.trim()
+                    ? running.description
+                    : "Update description when you stop"
+                }
               />
             </div>
           )}
@@ -517,49 +534,65 @@ export function TimeClockPanel({
           <CardHeader>
             <CardTitle className="text-base">Today&apos;s entries</CardTitle>
           </CardHeader>
-          <CardContent className="divide-y">
+          <CardContent>
             {todayEntries
               .filter((e) => e.endedAt)
-              .map((entry) => (
-                <div
-                  key={entry.id}
-                  className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0"
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium">
-                      {entry.description || (
-                        <span className="text-muted-foreground italic">No description</span>
+              .map((entry, index, entries) => {
+                const href = entryHref(entry);
+                const isLast = index === entries.length - 1;
+                const rowClassName = cn(
+                  "flex items-start justify-between gap-4 py-3",
+                  !isLast && "border-border border-b",
+                );
+                const content = (
+                  <>
+                    <div className="min-w-0">
+                      <p className="font-medium">
+                        {formatRunningTimerLabel(entry.description)}
+                      </p>
+                      <p className="text-muted-foreground text-sm">
+                        {entry.client?.name ?? "No client"}
+                        {entry.invoice
+                          ? ` · ${entry.invoice.invoicePrefix ?? "#"}${entry.invoice.invoiceNumber}`
+                          : entry.hours
+                            ? " · not on invoice"
+                            : ""}
+                      </p>
+                    </div>
+                    <div className="text-right text-sm">
+                      <p className="font-mono font-semibold">{entry.hours ?? "—"}h</p>
+                      {entry.rate ? (
+                        <p className="text-muted-foreground">${entry.rate}/hr</p>
+                      ) : null}
+                    </div>
+                  </>
+                );
+
+                if (href) {
+                  return (
+                    <Link
+                      key={entry.id}
+                      href={href}
+                      className={cn(
+                        rowClassName,
+                        "-mx-2 flex w-full cursor-pointer px-2 transition-colors hover:rounded-md hover:bg-muted/60",
                       )}
-                    </p>
-                    <p className="text-muted-foreground text-sm">
-                      {entry.client?.name ?? "No client"}
-                      {entry.invoice
-                        ? ` · ${entry.invoice.invoicePrefix ?? "#"}${entry.invoice.invoiceNumber}`
-                        : entry.hours
-                          ? " · not on invoice"
-                          : ""}
-                    </p>
+                    >
+                      {content}
+                    </Link>
+                  );
+                }
+
+                return (
+                  <div key={entry.id} className={rowClassName}>
+                    {content}
                   </div>
-                  <div className="text-right text-sm">
-                    <p className="font-mono font-semibold">{entry.hours ?? "—"}h</p>
-                    {entry.rate ? (
-                      <p className="text-muted-foreground">${entry.rate}/hr</p>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
           </CardContent>
         </Card>
       ) : null}
 
-      {compact ? (
-        <Button variant="link" className="h-auto p-0" asChild>
-          <Link href="/dashboard/time-clock">
-            Open full time clock
-            <ExternalLink className="ml-1 h-3.5 w-3.5" />
-          </Link>
-        </Button>
-      ) : null}
     </div>
   );
 }

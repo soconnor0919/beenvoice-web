@@ -7,7 +7,11 @@ import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Square, Clock } from "lucide-react";
 import { toast } from "sonner";
-import { describeClockOutOutcome, formatElapsedSeconds } from "~/lib/time-clock";
+import {
+  describeClockOutOutcome,
+  formatElapsedSeconds,
+  formatRunningTimerLabel,
+} from "~/lib/time-clock";
 import {
   Tooltip,
   TooltipContent,
@@ -86,10 +90,7 @@ export function ActiveTimerWidget({
     ? `${running.invoice.invoicePrefix ?? "#"}${running.invoice.invoiceNumber}`
     : null;
 
-  const description =
-    running.description || (
-      <span className="text-muted-foreground italic">No description</span>
-    );
+  const description = formatRunningTimerLabel(running.description);
 
   const renderStopButton = (className?: string) => (
     <Button
@@ -106,20 +107,20 @@ export function ActiveTimerWidget({
 
   if (compact) {
     return (
-      <div className="ml-auto flex flex-col items-center gap-1">
+      <div className="ml-auto flex min-w-0 items-center gap-1.5">
         <Link
           href="/dashboard/time-clock"
-          className="border-primary/30 bg-primary/5 flex items-center gap-2 rounded-md border px-2.5 py-1.5"
+          className="border-primary/30 bg-primary/5 flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1"
         >
-          <span className="relative flex h-2 w-2 flex-shrink-0">
+          <span className="relative flex h-2 w-2 shrink-0">
             <span className="bg-primary absolute inline-flex h-full w-full animate-ping rounded-full opacity-75" />
             <span className="bg-primary relative inline-flex h-2 w-2 rounded-full" />
           </span>
-          <span className="text-primary font-mono text-sm font-bold tabular-nums">
+          <span className="text-primary truncate font-mono text-sm font-bold tabular-nums">
             {formatElapsedSeconds(elapsed)}
           </span>
         </Link>
-        {renderStopButton()}
+        {renderStopButton("shrink-0")}
       </div>
     );
   }
@@ -141,7 +142,10 @@ export function ActiveTimerWidget({
                 </span>
               </Link>
             </TooltipTrigger>
-            <TooltipContent side="right" className="max-w-56 space-y-2 p-3">
+            <TooltipContent
+              side="right"
+              className="bg-popover text-popover-foreground border-border max-w-56 space-y-2 border p-3 text-sm [&>svg]:bg-popover [&>svg]:fill-popover"
+            >
               <p className="text-sm font-medium">
                 {description}
                 {running.client && (

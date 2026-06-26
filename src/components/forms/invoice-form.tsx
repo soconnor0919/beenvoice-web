@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Label } from "~/components/ui/label";
@@ -11,11 +11,9 @@ import {
   PageTabsContent,
   PageTabsList,
   PageTabsTrigger,
+  pageTabsGridClass,
 } from "~/components/layout/page-tabs";
-import {
-  DashboardPage,
-  dashboardGridClass,
-} from "~/components/layout/dashboard-page";
+import { DashboardPage } from "~/components/layout/dashboard-page";
 import { DashboardPageHeader } from "~/components/layout/page-header";
 import { cn } from "~/lib/utils";
 import {
@@ -72,13 +70,13 @@ interface InvoiceFormProps {
 
 function InvoiceFormSkeleton() {
   return (
-    <DashboardPage className="pb-8">
+    <DashboardPage>
       <DashboardPageHeader
         title="Loading..."
         description="Loading invoice form"
       />
-      <div className="bg-muted h-12 w-full animate-pulse rounded-xl p-1" />
-      <div className={cn(dashboardGridClass, "lg:grid-cols-2")}>
+      <div className="bg-muted h-10 w-full animate-pulse rounded-xl p-1" />
+      <div className={cn(pageTabsGridClass, "lg:grid-cols-2")}>
         <div className="bg-muted h-[200px] animate-pulse rounded-xl" />
         <div className="bg-muted h-[200px] animate-pulse rounded-xl" />
       </div>
@@ -103,7 +101,7 @@ function plainTextToHtml(value: string) {
     .replace(/\n/g, "<br>");
 }
 
-function createDefaultInvoiceFormData(blank = false): InvoiceFormData {
+function createDefaultInvoiceFormData(): InvoiceFormData {
   return {
     invoiceNumber: `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${Date.now().toString().slice(-6)}`,
     invoicePrefix: "#",
@@ -117,30 +115,26 @@ function createDefaultInvoiceFormData(blank = false): InvoiceFormData {
     taxRate: 0,
     currency: "USD",
     defaultHourlyRate: null,
-    items: blank
-      ? []
-      : [
-          {
-            id: crypto.randomUUID(),
-            date: new Date(),
-            description: "",
-            hours: 1,
-            rate: 0,
-            amount: 0,
-          },
-        ],
+    items: [
+      {
+        id: crypto.randomUUID(),
+        date: new Date(),
+        description: "",
+        hours: 1,
+        rate: 0,
+        amount: 0,
+      },
+    ],
   };
 }
 
 export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const isBlank = searchParams.get("blank") === "1";
   const utils = api.useUtils();
 
   // State
   const [formData, setFormData] = useState<InvoiceFormData>(() =>
-    createDefaultInvoiceFormData(isBlank),
+    createDefaultInvoiceFormData(),
   );
 
   const [loading, setLoading] = useState(false);
@@ -148,15 +142,6 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
   const [previewTab, setPreviewTab] = useState("pdf");
-  const [previewPinned, setPreviewPinned] = useState(false);
-
-  useEffect(() => {
-    const media = window.matchMedia("(min-width: 1024px)");
-    const update = () => setPreviewPinned(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
 
   // Queries (Same as before)
   const { data: clients, isLoading: loadingClients } =
@@ -187,7 +172,6 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
   }, [invoiceId]);
   useEffect(() => {
     if (invoiceId && invoiceId !== "new" && existingInvoice && !initialized) {
-      // ... (Mapping logic same as before)
       const mappedItems: InvoiceItem[] =
         existingInvoice.items?.map((item) => ({
           id: crypto.randomUUID(),
@@ -238,6 +222,19 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
       setInitialized(true);
     }
   }, [invoiceId, existingInvoice, businesses, initialized]);
+
+  useEffect(() => {
+    if (
+      invoiceId &&
+      invoiceId !== "new" &&
+      existingInvoice &&
+      !loadingInvoice &&
+      existingInvoice.status !== "draft"
+    ) {
+      toast.error("Only draft invoices can be edited");
+      router.replace(`/dashboard/invoices/${invoiceId}`);
+    }
+  }, [invoiceId, existingInvoice, loadingInvoice, router]);
 
   const totals = React.useMemo(() => {
     const subtotal = formData.items.reduce(
@@ -464,26 +461,20 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
     !initialized ||
     loadingClients ||
     loadingBusinesses ||
-    (invoiceId && invoiceId !== "new" && loadingInvoice)
+    (invoiceId && invoiceId !== "new" && loadingInvoice) ||
+    (invoiceId &&
+      invoiceId !== "new" &&
+      existingInvoice &&
+      existingInvoice.status !== "draft")
   )
     return <InvoiceFormSkeleton />;
 
   return (
     <>
-      <DashboardPage className="pb-8">
+      <DashboardPage>
         <DashboardPageHeader
-          title={
-            invoiceId !== "new"
-              ? "Edit Invoice"
-              : isBlank
-                ? "Blank Invoice"
-                : "Create Invoice"
-          }
-          description={
-            isBlank
-              ? "Set up a draft to clock time into later"
-              : "Manage your invoice"
-          }
+          title={invoiceId !== "new" ? "Edit Invoice" : "Create Invoice"}
+          description="Manage your invoice"
         >
           {invoiceId !== "new" && (
             <Button
@@ -500,27 +491,17 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
           </Button>
         </DashboardPageHeader>
 
-        <div
-          className={cn(
-            dashboardGridClass,
-            "lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]",
-          )}
-        >
-          <PageTabs value={activeTab} className="w-full" onValueChange={setActiveTab}>
+        <PageTabs value={activeTab} className="w-full" onValueChange={setActiveTab}>
           <PageTabsList>
             <PageTabsTrigger value="details">Details</PageTabsTrigger>
             <PageTabsTrigger value="items">Items</PageTabsTrigger>
             <PageTabsTrigger value="timesheet">Timesheet</PageTabsTrigger>
-            <PageTabsTrigger value="preview" className="lg:hidden">
-              Preview
-            </PageTabsTrigger>
+            <PageTabsTrigger value="preview">Preview</PageTabsTrigger>
           </PageTabsList>
 
           {/* DETAILS TAB */}
-          <PageTabsContent
-            value="details"
-            className={cn(dashboardGridClass, "lg:grid-cols-2")}
-          >
+          <PageTabsContent value="details">
+            <div className={cn(pageTabsGridClass, "lg:grid-cols-2")}>
             <Card className="h-full">
               <CardHeader>
                 <CardTitle className="flex gap-2 text-base">
@@ -763,11 +744,12 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
                 />
               </CardContent>
             </Card>
+            </div>
           </PageTabsContent>
 
           {/* ITEMS TAB */}
           <PageTabsContent value="items">
-            <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className={cn(pageTabsGridClass, "md:grid-cols-3")}>
               <Card className="bg-primary/5 border-primary/20">
                 <CardContent className="flex items-center justify-between p-4">
                   <span className="text-muted-foreground">Total</span>
@@ -840,28 +822,48 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
           </PageTabsContent>
 
           <PageTabsContent value="preview">
-            <PageTabs
-              value={previewTab}
-              onValueChange={setPreviewTab}
-              className="w-full"
-            >
-              <PageTabsList>
-                <PageTabsTrigger value="pdf">PDF</PageTabsTrigger>
-                <PageTabsTrigger value="email">Email</PageTabsTrigger>
-              </PageTabsList>
-
-              <PageTabsContent value="pdf">
-                <InvoicePdfPreviewPanel input={pdfPreviewInput} />
-              </PageTabsContent>
-
-              <PageTabsContent value="email">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex gap-2">
-                      <Mail className="h-5 w-5" /> Email Preview
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
+            <Card className="overflow-hidden">
+              <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <FileText className="h-4 w-4" />
+                  Preview
+                </CardTitle>
+                <div className="bg-muted flex rounded-lg p-1 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab("pdf")}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-center font-medium transition-all",
+                      previewTab === "pdf"
+                        ? "bg-background text-foreground shadow"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab("email")}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-center font-medium transition-all",
+                      previewTab === "email"
+                        ? "bg-background text-foreground shadow"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    Email
+                  </button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {previewTab === "pdf" ? (
+                  <InvoicePdfPreviewPanel
+                    embedded
+                    input={pdfPreviewInput}
+                    enabled={activeTab === "preview" && previewTab === "pdf"}
+                  />
+                ) : (
+                  <div className="border-t p-6">
                     <EmailPreview
                       subject={`Invoice ${formData.invoiceNumber} from ${
                         selectedBusiness?.name ?? "Your Business"
@@ -900,30 +902,12 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
                         })),
                       }}
                     />
-                  </CardContent>
-                </Card>
-              </PageTabsContent>
-            </PageTabs>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </PageTabsContent>
         </PageTabs>
-
-          <aside className="hidden lg:block">
-            <div className="sticky top-4 space-y-4">
-              <InvoicePdfPreviewPanel
-                input={pdfPreviewInput}
-                enabled={previewPinned || activeTab === "preview"}
-              />
-              <Card className="border-primary/20 bg-primary/5">
-                <CardContent className="flex items-center justify-between p-4">
-                  <span className="text-muted-foreground text-sm">Invoice total</span>
-                  <span className="font-mono text-2xl font-bold">
-                    <CountUp value={totals.total} prefix="$" />
-                  </span>
-                </CardContent>
-              </Card>
-            </div>
-          </aside>
-        </div>
       </DashboardPage>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

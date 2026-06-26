@@ -31,7 +31,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
       <div
         className={cn(
-          "dashboard-mobile-header bg-background/80 fixed top-0 right-0 left-0 z-50 flex h-16 items-center border-b px-4 backdrop-blur-md md:hidden",
+          "dashboard-mobile-header bg-background/80 border-border fixed top-0 right-0 left-0 z-50 flex min-h-16 items-center border-b px-3 backdrop-blur-md sm:px-4 md:hidden",
           isOnboarding && "hidden",
         )}
       >
@@ -47,8 +47,8 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
               <span className="sr-only">Toggle menu</span>
             </Button>
           </SheetTrigger>
-          <div className="ml-4 flex min-w-0 flex-1 items-center gap-2">
-            <Logo size="sm" />
+          <div className="ml-3 flex min-w-0 flex-1 items-center gap-2 sm:ml-4">
+            <Logo size="sm" className="shrink-0" />
             <ActiveTimerWidget compact />
           </div>
           <SheetContent side="left" className="w-72 p-0">
@@ -67,9 +67,13 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           !isOnboarding && (isCollapsed ? "md:ml-16" : "md:ml-64"),
         )}
       >
-        <div className="dashboard-content-shell flex flex-col gap-5 md:gap-6">
+        {isOnboarding ? (
           <OnboardingGuard>{children}</OnboardingGuard>
-        </div>
+        ) : (
+          <div className="dashboard-content-shell flex flex-col gap-5 md:gap-6">
+            <OnboardingGuard>{children}</OnboardingGuard>
+          </div>
+        )}
       </main>
     </div>
   );

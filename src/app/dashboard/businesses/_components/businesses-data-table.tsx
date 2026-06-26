@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "~/components/ui/button";
 import { DataTable, DataTableColumnHeader } from "~/components/data/data-table";
-import { Building, Pencil, Trash2, ExternalLink } from "lucide-react";
+import { Building, Pencil, Trash2, ExternalLink, Plus } from "lucide-react";
 import { useState } from "react";
 import {
   Dialog,
@@ -208,6 +208,17 @@ export function BusinessesDataTable({ businesses }: BusinessesDataTableProps) {
         data={searchableBusinesses}
         searchKey="searchValue"
         searchPlaceholder="Search by name or nickname..."
+        emptyTitle="Create your first business"
+        emptyDescription="Set up a business profile for invoices, branding, and tax details."
+        emptyIcon={<Building className="h-6 w-6" />}
+        emptyAction={
+          <Button asChild>
+            <Link href="/dashboard/businesses/new">
+              <Plus className="mr-2 h-4 w-4" />
+              Add business
+            </Link>
+          </Button>
+        }
         onRowClick={handleRowClick}
       />
 

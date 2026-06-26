@@ -24,10 +24,12 @@ import {
   ChevronsRight,
   Filter,
   Search,
+  SearchX,
   X,
 } from "lucide-react";
 import * as React from "react";
 
+import { EmptyState } from "~/components/layout/page-layout";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import {
@@ -87,6 +89,41 @@ interface DataTableProps<TData, TValue> {
     clearSelection: () => void,
   ) => React.ReactNode;
   initialSorting?: SortingState;
+  /** Shown when the dataset is empty (no rows in DB). */
+  emptyTitle?: string;
+  emptyDescription?: string;
+  emptyIcon?: React.ReactNode;
+  emptyAction?: React.ReactNode;
+  /** Shown when filters/search hide all rows but data exists. */
+  filteredEmptyTitle?: string;
+  filteredEmptyDescription?: string;
+}
+
+export interface DataTableEmptyStateProps {
+  icon?: React.ReactNode;
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+  className?: string;
+}
+
+/** Centered empty state for data tables (reuses page EmptyState). */
+export function DataTableEmptyState({
+  icon,
+  title,
+  description,
+  action,
+  className,
+}: DataTableEmptyStateProps) {
+  return (
+    <EmptyState
+      icon={icon}
+      title={title}
+      description={description}
+      action={action}
+      className={cn("py-16", className)}
+    />
+  );
 }
 
 export function DataTable<TData, TValue>({
@@ -106,6 +143,12 @@ export function DataTable<TData, TValue>({
   onRowClick,
   selectionActions,
   initialSorting = [],
+  emptyTitle,
+  emptyDescription,
+  emptyIcon,
+  emptyAction,
+  filteredEmptyTitle = "No matches for your search",
+  filteredEmptyDescription = "Try adjusting your search or filters.",
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>(initialSorting);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -190,6 +233,9 @@ export function DataTable<TData, TValue>({
   }, [globalFilter]);
 
   const pageSizeOptions = [5, 10, 20, 30, 50, 100];
+  const filteredRowCount = table.getFilteredRowModel().rows.length;
+  const isDatasetEmpty = data.length === 0;
+  const isFilteredEmpty = !isDatasetEmpty && filteredRowCount === 0;
 
   // Handle row click
   const handleRowClick = (row: TData, event: React.MouseEvent) => {
@@ -419,12 +465,26 @@ export function DataTable<TData, TValue>({
                   </TableRow>
                 ))
               ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="h-24 text-center"
-                  >
-                    <p className="text-muted-foreground">No results found</p>
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={columns.length} className="p-0">
+                    {isDatasetEmpty && emptyTitle ? (
+                      <DataTableEmptyState
+                        icon={emptyIcon}
+                        title={emptyTitle}
+                        description={emptyDescription}
+                        action={emptyAction}
+                      />
+                    ) : isFilteredEmpty ? (
+                      <DataTableEmptyState
+                        icon={<SearchX className="h-6 w-6" />}
+                        title={filteredEmptyTitle}
+                        description={filteredEmptyDescription}
+                      />
+                    ) : (
+                      <div className="text-muted-foreground py-16 text-center text-sm">
+                        No results found
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               )}

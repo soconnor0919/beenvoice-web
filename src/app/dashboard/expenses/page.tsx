@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api } from "~/trpc/react";
 import { DashboardPageHeader } from "~/components/layout/page-header";
 import { DashboardPage, dashboardStatGridClass } from "~/components/layout/dashboard-page";
+import { EmptyState } from "~/components/layout/page-layout";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
@@ -214,12 +215,17 @@ export default function ExpensesPage() {
               Loading…
             </div>
           ) : expenses.length === 0 ? (
-            <div className="p-8 text-center">
-              <Receipt className="text-muted-foreground mx-auto mb-3 h-10 w-10" />
-              <p className="text-muted-foreground text-sm">
-                No expenses yet. Add your first expense.
-              </p>
-            </div>
+            <EmptyState
+              icon={<Receipt className="h-6 w-6" />}
+              title="Create your first expense"
+              description="Track billable costs, reimbursements, and tax-deductible spending."
+              action={
+                <Button onClick={handleOpen}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add expense
+                </Button>
+              }
+            />
           ) : (
             <div className="divide-y">
               {expenses.map((expense) => (

@@ -177,6 +177,7 @@ export function AnimationPreferencesProviderSynced({
       serverPrefs.animationSpeedMultiplier !== animationSpeedMultiplier;
 
     if (localIsDefault || differs) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time server hydration after local storage
       performUpdate(
         {
           prefersReducedMotion: serverPrefs.prefersReducedMotion,

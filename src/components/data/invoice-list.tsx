@@ -155,11 +155,22 @@ export function InvoiceList() {
                       <Eye className="h-4 w-4" />
                     </Button>
                   </Link>
-                  <Link href={`/dashboard/invoices/${invoice.id}/edit`}>
-                    <Button variant="ghost" size="sm">
+                  {invoice.status === "draft" ? (
+                    <Link href={`/dashboard/invoices/${invoice.id}/edit`}>
+                      <Button variant="ghost" size="sm">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled
+                      title="Only draft invoices can be edited"
+                    >
                       <Edit className="h-4 w-4" />
                     </Button>
-                  </Link>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"

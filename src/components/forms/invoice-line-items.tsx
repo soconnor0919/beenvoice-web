@@ -155,7 +155,7 @@ const LineItemCard = React.forwardRef<HTMLDivElement, LineItemRowProps>(
       <div
         ref={ref}
         className={cn(
-          "group hover:bg-muted/30 hidden min-h-11 grid-cols-[108px_minmax(180px,1fr)_96px_108px_88px_28px] items-center gap-1.5 border-b px-2 py-1.5 transition-colors md:grid",
+          "group hover:bg-muted/30 hidden min-h-11 grid-cols-[minmax(11.5rem,auto)_minmax(180px,1fr)_96px_108px_88px_28px] items-center gap-1.5 border-b px-2 py-1.5 transition-colors md:grid",
         )}
       >
         <DatePicker
@@ -260,7 +260,7 @@ function MobileLineItem({
           date={item.date}
           onDateChange={(date) => onUpdate(index, "date", date ?? new Date())}
           size="sm"
-          className="w-[92px] shrink-0"
+          className="w-auto shrink-0"
           inputClassName="h-8 px-2 text-xs"
           disabled={readOnly}
         />
@@ -374,7 +374,7 @@ export function InvoiceLineItems({
       ) : null}
       <AnimatePresence>
         <div className="space-y-0 md:overflow-hidden md:rounded-lg md:border">
-          <div className="bg-muted/60 text-muted-foreground hidden grid-cols-[108px_minmax(180px,1fr)_96px_108px_88px_28px] gap-1.5 border-b px-2 py-1.5 text-[11px] font-semibold tracking-wide uppercase md:grid">
+          <div className="bg-muted/60 text-muted-foreground hidden grid-cols-[minmax(11.5rem,auto)_minmax(180px,1fr)_96px_108px_88px_28px] gap-1.5 border-b px-2 py-1.5 text-[11px] font-semibold tracking-wide uppercase md:grid">
             <span>Date</span>
             <span>Description</span>
             <span className="text-center">Hours</span>

@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { DashboardPageHeader } from "~/components/layout/page-header";
 import { DashboardPage } from "~/components/layout/dashboard-page";
+import { EmptyState } from "~/components/layout/page-layout";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
@@ -376,16 +377,18 @@ export default function RecurringInvoicesPage() {
         </div>
       ) : (recurring ?? []).length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-            <RefreshCw className="text-muted-foreground h-10 w-10" />
-            <p className="text-muted-foreground text-sm">
-              No recurring invoices yet. Create one to automatically generate draft invoices on a
-              schedule.
-            </p>
-            <Button onClick={() => { setForm(defaultForm()); setCreateOpen(true); }}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create first recurring invoice
-            </Button>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={<RefreshCw className="h-6 w-6" />}
+              title="Create your first recurring invoice"
+              description="Automatically generate draft invoices on a schedule you choose."
+              action={
+                <Button onClick={() => { setForm(defaultForm()); setCreateOpen(true); }}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create recurring invoice
+                </Button>
+              }
+            />
           </CardContent>
         </Card>
       ) : (

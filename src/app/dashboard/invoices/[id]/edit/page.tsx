@@ -1,12 +1,22 @@
-"use client";
-
-import { useParams } from "next/navigation";
+import { redirect } from "next/navigation";
 import InvoiceForm from "~/components/forms/invoice-form";
+import { api } from "~/trpc/server";
 
-export default function InvoiceFormPage() {
-  const params = useParams();
-  const id = params.id as string;
+interface EditInvoicePageProps {
+  params: Promise<{ id: string }>;
+}
 
-  // Pass the actual id, let the form component handle the logic
+export default async function EditInvoicePage({ params }: EditInvoicePageProps) {
+  const { id } = await params;
+
+  try {
+    const invoice = await api.invoices.getById({ id });
+    if (invoice.status !== "draft") {
+      redirect(`/dashboard/invoices/${id}?editBlocked=1`);
+    }
+  } catch {
+    redirect("/dashboard/invoices");
+  }
+
   return <InvoiceForm invoiceId={id} />;
 }

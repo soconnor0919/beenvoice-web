@@ -37,6 +37,8 @@ type InvoicePdfPreviewPanelProps = {
   enabled?: boolean;
   className?: string;
   heightClassName?: string;
+  /** Renders only the preview body (no card/header) for embedding in a parent pane. */
+  embedded?: boolean;
 };
 
 export function InvoicePdfPreviewPanel({
@@ -44,6 +46,7 @@ export function InvoicePdfPreviewPanel({
   enabled = true,
   className,
   heightClassName = "h-[min(80vh,760px)]",
+  embedded = false,
 }: InvoicePdfPreviewPanelProps) {
   const previewReady = canPreview(input);
 
@@ -54,6 +57,48 @@ export function InvoicePdfPreviewPanel({
       staleTime: 5_000,
     });
 
+  const previewBody = (
+    <div
+      className={cn(
+        "bg-muted/20 overflow-hidden border-t",
+        heightClassName,
+      )}
+    >
+      {!previewReady ? (
+        <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
+          Select a client and add descriptions for all line items to generate the
+          PDF preview.
+        </div>
+      ) : error ? (
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+          <p className="text-destructive text-sm">{error.message}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+            Try again
+          </Button>
+        </div>
+      ) : isFetching && !pdfPreview ? (
+        <div className="text-muted-foreground flex h-full items-center justify-center gap-2 p-6 text-center text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Generating preview…
+        </div>
+      ) : pdfPreview ? (
+        <iframe
+          title="Invoice PDF preview"
+          src={`data:${pdfPreview.contentType};base64,${pdfPreview.base64}`}
+          className="h-full w-full border-0"
+        />
+      ) : (
+        <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
+          PDF preview will appear here.
+        </div>
+      )}
+    </div>
+  );
+
+  if (embedded) {
+    return <div className={cn("overflow-hidden", className)}>{previewBody}</div>;
+  }
+
   return (
     <Card className={cn("overflow-hidden", className)}>
       <CardHeader className="pb-3">
@@ -63,43 +108,7 @@ export function InvoicePdfPreviewPanel({
           {isFetching ? <Loader2 className="text-muted-foreground h-3.5 w-3.5 animate-spin" /> : null}
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-0">
-        <div
-          className={cn(
-            "bg-muted/20 overflow-hidden border-t",
-            heightClassName,
-          )}
-        >
-          {!previewReady ? (
-            <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
-              Select a client and add descriptions for all line items to generate the
-              PDF preview.
-            </div>
-          ) : error ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-              <p className="text-destructive text-sm">{error.message}</p>
-              <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
-                Try again
-              </Button>
-            </div>
-          ) : isFetching && !pdfPreview ? (
-            <div className="text-muted-foreground flex h-full items-center justify-center gap-2 p-6 text-center text-sm">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Generating preview…
-            </div>
-          ) : pdfPreview ? (
-            <iframe
-              title="Invoice PDF preview"
-              src={`data:${pdfPreview.contentType};base64,${pdfPreview.base64}`}
-              className="h-full w-full border-0"
-            />
-          ) : (
-            <div className="text-muted-foreground flex h-full items-center justify-center p-6 text-center text-sm">
-              PDF preview will appear here.
-            </div>
-          )}
-        </div>
-      </CardContent>
+      <CardContent className="p-0">{previewBody}</CardContent>
     </Card>
   );
 }

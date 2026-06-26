@@ -440,20 +440,10 @@ export const invoicesRouter = createTRPCRouter({
           });
         }
 
-        if (items && existingInvoice.status !== "draft") {
+        if (existingInvoice.status !== "draft") {
           throw new TRPCError({
             code: "FORBIDDEN",
-            message: "Line items can only be edited on draft invoices",
-          });
-        }
-
-        if (
-          cleanInvoiceData.sendReminderAt !== undefined &&
-          existingInvoice.status !== "draft"
-        ) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Send reminders can only be set on draft invoices",
+            message: "Only draft invoices can be edited",
           });
         }
 

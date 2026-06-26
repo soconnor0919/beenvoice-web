@@ -6,6 +6,7 @@ import { TRPCError } from "@trpc/server";
 import type { db } from "~/server/db";
 import {
   computeTrackedHours,
+  resolveBillingDescription,
   type ClockOutOutcome,
 } from "~/lib/time-clock";
 import { defaultDueDate, generateInvoiceNumber } from "~/lib/draft-invoice";
@@ -457,12 +458,13 @@ export const timeEntriesRouter = createTRPCRouter({
 
       const endedAt = new Date();
       const hours = computeHours(entry.startedAt, endedAt);
-      const description = input?.description?.trim() ?? entry.description;
+      const rawDescription = input?.description?.trim() ?? entry.description?.trim() ?? "";
+      const billingDescription = resolveBillingDescription(rawDescription);
       const rate = entry.rate ?? 0;
 
       const [updated] = await ctx.db
         .update(timeEntries)
-        .set({ endedAt, hours, description, updatedAt: new Date() })
+        .set({ endedAt, hours, description: rawDescription, updatedAt: new Date() })
         .where(eq(timeEntries.id, entry.id))
         .returning();
 
@@ -478,7 +480,7 @@ export const timeEntriesRouter = createTRPCRouter({
             ctx.session.user.id,
             entry.invoiceId,
             updated.id,
-            description,
+            billingDescription,
             hours,
             rate,
             endedAt,
@@ -490,7 +492,7 @@ export const timeEntriesRouter = createTRPCRouter({
             ctx.session.user.id,
             entry.clientId,
             updated.id,
-            description,
+            billingDescription,
             hours,
             rate,
             endedAt,

@@ -4,6 +4,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { genericOAuth } from "better-auth/plugins";
 import { envBoolean } from "~/lib/env-boolean";
+import { isDemoUser, promoteFirstRealUserIfNeeded } from "~/lib/first-admin";
 import { db } from "~/server/db";
 import * as schema from "~/server/db/schema";
 
@@ -48,6 +49,18 @@ export const auth = betterAuth({
       verification: schema.verificationTokens,
     },
   }),
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          if (isDemoUser(user)) {
+            return;
+          }
+          await promoteFirstRealUserIfNeeded(user.id);
+        },
+      },
+    },
+  },
   trustedOrigins: async (request) => {
     const origins = [...staticTrustedOrigins];
 

@@ -26,6 +26,8 @@
     --input: 240 5.9% 90%;
     --ring: 240 10% 3.9%;
     --radius: 1rem;
+    --dashboard-mobile-header-height: 4rem;
+    --dashboard-mobile-header-gap: 0.75rem;
   }
 
   :root[data-color-mode="dark"],
@@ -127,9 +129,15 @@
 }
 
 @layer utilities {
+  .dashboard-mobile-header {
+    min-height: var(--dashboard-mobile-header-height);
+  }
+
   .dashboard-content-shell {
     padding: 1rem;
-    padding-top: 4rem;
+    padding-top: calc(
+      var(--dashboard-mobile-header-height) + var(--dashboard-mobile-header-gap)
+    );
   }
 
   @media (min-width: 768px) {
@@ -143,7 +151,10 @@
     padding: 1.25rem;
   }
 
-  [data-slot="card"] {
+  [data-slot="card"],
+  [data-slot="dialog-content"],
+  [data-slot="alert-dialog-content"],
+  [data-slot="popover-content"] {
     border-radius: var(--radius-lg);
   }
 

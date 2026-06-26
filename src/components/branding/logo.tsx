@@ -1,26 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { brand } from "~/lib/branding";
+import { brand, splitLogoText } from "~/lib/branding";
 import { cn } from "~/lib/utils";
 
 interface LogoProps {
   className?: string;
   size?: "sm" | "md" | "lg" | "xl" | "icon";
   animated?: boolean;
-}
-
-function splitLogoText(logoText: string) {
-  const voiceIndex = logoText.toLowerCase().indexOf("voice");
-
-  if (voiceIndex > 0) {
-    return [logoText.slice(0, voiceIndex), logoText.slice(voiceIndex)] as const;
-  }
-
-  return [
-    logoText.slice(0, Math.ceil(logoText.length / 2)),
-    logoText.slice(Math.ceil(logoText.length / 2)),
-  ] as const;
 }
 
 export function Logo({ className, size = "md", animated = true }: LogoProps) {
