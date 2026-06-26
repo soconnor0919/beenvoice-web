@@ -2,30 +2,18 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { auth } from "~/lib/auth";
 import { env } from "~/env";
 import { db } from "~/server/db";
 import { accounts, users } from "~/server/db/schema";
 
 const registerSchema = z
   .object({
-    firstName: z.string().trim().optional(),
-    lastName: z.string().trim().optional(),
+    firstName: z.string().trim().min(1, "First name is required"),
+    lastName: z.string().trim().min(1, "Last name is required"),
     name: z.string().trim().optional(),
     email: z.string().email("Invalid email address"),
     password: z.string().min(8, "Password must be at least 8 characters"),
-  })
-  .superRefine((data, ctx) => {
-    const hasSplitName =
-      Boolean(data.firstName?.length) && Boolean(data.lastName?.length);
-    const hasFullName = Boolean(data.name?.length);
-
-    if (!hasSplitName && !hasFullName) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "First and last name are required",
-        path: ["firstName"],
-      });
-    }
   })
   .transform((data) => {
     if (data.name?.length) {
@@ -41,8 +29,8 @@ const registerSchema = z
     }
 
     return {
-      firstName: data.firstName!.trim(),
-      lastName: data.lastName!.trim(),
+      firstName: data.firstName,
+      lastName: data.lastName,
       email: data.email,
       password: data.password,
     };
@@ -150,6 +138,22 @@ export async function POST(request: NextRequest) {
         password: hashedPassword,
       });
     });
+
+    try {
+      await auth.api.signInEmail({
+        body: {
+          email: normalizedEmail,
+          password,
+        },
+        headers: request.headers,
+      });
+    } catch (signInError) {
+      console.error("Post-register sign-in failed:", signInError);
+      return NextResponse.json(
+        { message: "User created successfully", signInRequired: true },
+        { status: 201 },
+      );
+    }
 
     return NextResponse.json(
       { message: "User created successfully" },

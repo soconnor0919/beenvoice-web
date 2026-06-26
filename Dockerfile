@@ -10,10 +10,14 @@ FROM base AS build
 COPY --from=install /usr/src/app/node_modules node_modules
 COPY . .
 
+ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
+ARG BETTER_AUTH_URL=http://localhost:3000
+
 ENV NODE_ENV=production \
     SKIP_ENV_VALIDATION=1 \
     NODE_OPTIONS=--max-old-space-size=4096 \
-    BETTER_AUTH_URL=http://localhost:3000 \
+    BETTER_AUTH_URL=${BETTER_AUTH_URL} \
+    NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL} \
     AUTH_SECRET=docker-build-placeholder-secret-do-not-use \
     DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
 RUN bun run build

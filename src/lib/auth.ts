@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { genericOAuth } from "better-auth/plugins";
+import { envBoolean } from "~/lib/env-boolean";
 import { db } from "~/server/db";
 import * as schema from "~/server/db/schema";
 
@@ -11,7 +12,7 @@ const authentikEnabled = Boolean(
     process.env.AUTHENTIK_CLIENT_ID &&
     process.env.AUTHENTIK_CLIENT_SECRET,
 );
-const signupsDisabled = process.env.DISABLE_SIGNUPS === "true";
+const signupsDisabled = envBoolean(process.env.DISABLE_SIGNUPS);
 
 // Derive the authentik origin from the issuer URL so the OAuth callback is
 // automatically trusted without needing a separate AUTHENTIK_ORIGIN env var.
@@ -20,9 +21,21 @@ const authentikOrigin =
     ? new URL(process.env.AUTHENTIK_ISSUER).origin
     : null;
 
+const staticTrustedOrigins = [
+  ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
+  ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
+  "beenvoice://",
+  "exp://",
+  ...(authentikOrigin ? [authentikOrigin] : []),
+  ...(process.env.AUTHENTIK_ORIGIN ? [process.env.AUTHENTIK_ORIGIN] : []),
+];
+
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.AUTH_SECRET,
+  advanced: {
+    trustedProxyHeaders: true,
+  },
   experimental: {
     joins: true,
   },
@@ -35,14 +48,25 @@ export const auth = betterAuth({
       verification: schema.verificationTokens,
     },
   }),
-  trustedOrigins: [
-    ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
-    ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
-    "beenvoice://",
-    "exp://",
-    ...(authentikOrigin ? [authentikOrigin] : []),
-    ...(process.env.AUTHENTIK_ORIGIN ? [process.env.AUTHENTIK_ORIGIN] : []),
-  ],
+  trustedOrigins: async (request) => {
+    const origins = [...staticTrustedOrigins];
+
+    if (!request) return origins;
+
+    const origin = request.headers.get("origin");
+    if (origin) origins.push(origin);
+
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const forwardedProto = request.headers.get("x-forwarded-proto") ?? "https";
+    if (forwardedHost) {
+      for (const host of forwardedHost.split(",")) {
+        const trimmed = host.trim();
+        if (trimmed) origins.push(`${forwardedProto}://${trimmed}`);
+      }
+    }
+
+    return origins;
+  },
   ...(authentikEnabled && {
     accountLinking: {
       enabled: true,

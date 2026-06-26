@@ -36,7 +36,11 @@ export function SignInForm({ allowRegistration }: SignInFormProps) {
     setLoading(false);
 
     if (error) {
-      toast.error(error.message ?? "Invalid email or password");
+      toast.error(
+        error.message && error.message !== "Required"
+          ? error.message
+          : "Invalid email or password",
+      );
     } else {
       toast.success("Signed in successfully!");
       router.push(callbackUrl);

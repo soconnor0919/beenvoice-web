@@ -90,7 +90,9 @@ Open [http://localhost:3000](http://localhost:3000), register at `/auth/register
 
 ## Docker deployment (app + database)
 
-The production compose file runs the Next.js app and PostgreSQL. Migrations run automatically on container start (`bun migrate.ts` in the image `CMD`).
+The production compose file runs the Next.js app and PostgreSQL.
+
+**Container startup** runs `bun migrate.ts && bun run start` (see `Dockerfile`). Drizzle only applies **pending** migrations — safe to run on every restart; already-applied migrations are skipped.
 
 ### 1. Configure
 
@@ -106,23 +108,43 @@ BETTER_AUTH_URL=https://your-public-hostname
 NEXT_PUBLIC_APP_URL=https://your-public-hostname
 ```
 
-`BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` must match the URL users actually use in the browser. If they point at `localhost` but you access the app via another hostname, auth (sign-in / sign-up) will fail.
+`BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` must match the URL users actually use in the browser (scheme + host + port). If they point at `localhost` but you access the app via another hostname, sign-up and sign-in will fail (often with a vague **"REQUIRED"** toast).
 
-`NEXT_PUBLIC_*` values are embedded at **image build** time. Rebuild after changing white-label or Authentik client flags:
+`NEXT_PUBLIC_*` values are embedded at **image build** time. Rebuild after changing `NEXT_PUBLIC_APP_URL`, white-label defaults, or `NEXT_PUBLIC_AUTHENTIK_ENABLED`:
 
 ```bash
 docker compose build --no-cache app
 ```
 
-### 2. Start
+`BETTER_AUTH_URL` and `AUTH_SECRET` are read at **container runtime** from `.env` — you can change them without rebuilding, then restart the app container.
+
+### 2. First start (or after code changes)
 
 ```bash
 docker compose up -d --build
 ```
 
+`--build` is important. A plain `docker compose up -d` reuses the existing image and **does not** pick up new code from `git pull`.
+
 App listens on `${WEB_PORT:-3000}`. Postgres stays on the internal compose network.
 
-### 3. Sign-ups
+### 3. Updating an existing deploy
+
+```bash
+git pull
+docker compose up -d --build   # rebuild image, restart app, run any new migrations
+```
+
+| Command | New code? | Migrations run? |
+|---------|-----------|-----------------|
+| `git pull` only | No | No |
+| `docker compose up -d` (no `--build`) | No — old image | Only if the app container restarts (same image) |
+| `docker compose up -d --build` | Yes | Yes — on app container start |
+| `docker compose restart app` | No | Yes — migrate runs again (no-op if up to date) |
+
+To verify migration files match the journal before deploy: `bun run db:verify-journal`.
+
+### 4. Sign-ups
 
 Registration is **enabled** by default. To block new email/password accounts:
 
@@ -132,7 +154,7 @@ DISABLE_SIGNUPS=true
 
 Use the literal strings `true` or `false` (or omit the variable). Do not rely on bare boolean coercion from shell/compose — the app parses these explicitly.
 
-### 4. Optional services
+### 5. Optional services
 
 | Variable | Purpose |
 |----------|---------|

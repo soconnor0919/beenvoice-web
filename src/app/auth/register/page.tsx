@@ -9,24 +9,27 @@ import { Label } from "~/components/ui/label";
 import { toast } from "sonner";
 import { Logo } from "~/components/branding/logo";
 import { LegalAgreementNotice } from "~/components/legal/legal-links";
-import { authClient } from "~/lib/auth-client";
 import { Mail, Lock, ArrowRight, User } from "lucide-react";
+
+function formatAuthError(message: string | undefined, fallback: string): string {
+  if (!message || message === "Required") {
+    return fallback;
+  }
+  return message;
+}
 
 function RegisterForm() {
   const router = useRouter();
-
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleRegister(e: React.FormEvent) {
+  async function handleRegister(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    const trimmedFirstName = firstName.trim();
-    const trimmedLastName = lastName.trim();
-    const trimmedEmail = email.trim();
+    const formData = new FormData(e.currentTarget);
+    const trimmedFirstName = String(formData.get("firstName") ?? "").trim();
+    const trimmedLastName = String(formData.get("lastName") ?? "").trim();
+    const trimmedEmail = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
 
     if (!trimmedFirstName || !trimmedLastName || !trimmedEmail) {
       toast.error("Please enter your first name, last name, and email.");
@@ -52,19 +55,22 @@ function RegisterForm() {
         }),
       });
 
-      const data = (await res.json()) as { error?: string };
-
-      if (!res.ok) {
-        toast.error(data.error ?? "Registration failed");
+      let data: { error?: string; signInRequired?: boolean } = {};
+      try {
+        data = (await res.json()) as typeof data;
+      } catch {
+        toast.error("Registration failed. Please try again.");
         return;
       }
 
-      const { error: signInError } = await authClient.signIn.email({
-        email: trimmedEmail,
-        password,
-      });
+      if (!res.ok) {
+        toast.error(
+          formatAuthError(data.error, "Registration failed. Please check the form."),
+        );
+        return;
+      }
 
-      if (signInError) {
+      if (data.signInRequired) {
         toast.success("Account created! Please sign in.");
         router.push("/auth/signin");
         return;
@@ -106,11 +112,11 @@ function RegisterForm() {
                     <User className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2" />
                     <Input
                       id="firstName"
+                      name="firstName"
                       type="text"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
                       required
                       autoFocus
+                      autoComplete="given-name"
                       className="h-10 pl-10"
                       placeholder="John"
                     />
@@ -123,10 +129,10 @@ function RegisterForm() {
                     <User className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2" />
                     <Input
                       id="lastName"
+                      name="lastName"
                       type="text"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
                       required
+                      autoComplete="family-name"
                       className="h-10 pl-10"
                       placeholder="Doe"
                     />
@@ -140,10 +146,10 @@ function RegisterForm() {
                   <Mail className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2" />
                   <Input
                     id="email"
+                    name="email"
                     type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
                     required
+                    autoComplete="email"
                     className="h-10 pl-10"
                     placeholder="you@example.com"
                   />
@@ -156,11 +162,11 @@ function RegisterForm() {
                   <Lock className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2" />
                   <Input
                     id="password"
+                    name="password"
                     type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={8}
+                    autoComplete="new-password"
                     className="h-10 pl-10"
                     placeholder="••••••••"
                   />
