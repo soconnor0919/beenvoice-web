@@ -6,19 +6,78 @@ import { env } from "~/env";
 import { db } from "~/server/db";
 import { accounts, users } from "~/server/db/schema";
 
-const registerSchema = z.object({
-  firstName: z.string().trim().min(1, "First name is required"),
-  lastName: z.string().trim().min(1, "Last name is required"),
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-});
+const registerSchema = z
+  .object({
+    firstName: z.string().trim().optional(),
+    lastName: z.string().trim().optional(),
+    name: z.string().trim().optional(),
+    email: z.string().email("Invalid email address"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+  })
+  .superRefine((data, ctx) => {
+    const hasSplitName =
+      Boolean(data.firstName?.length) && Boolean(data.lastName?.length);
+    const hasFullName = Boolean(data.name?.length);
+
+    if (!hasSplitName && !hasFullName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "First and last name are required",
+        path: ["firstName"],
+      });
+    }
+  })
+  .transform((data) => {
+    if (data.name?.length) {
+      const parts = data.name.trim().split(/\s+/);
+      const firstName = parts[0] ?? "";
+      const lastName = parts.slice(1).join(" ") || firstName;
+      return {
+        firstName,
+        lastName,
+        email: data.email,
+        password: data.password,
+      };
+    }
+
+    return {
+      firstName: data.firstName!.trim(),
+      lastName: data.lastName!.trim(),
+      email: data.email,
+      password: data.password,
+    };
+  });
 
 const fieldLabels: Record<string, string> = {
   firstName: "First name",
   lastName: "Last name",
+  name: "Name",
   email: "Email address",
   password: "Password",
 };
+
+function formatRegisterError(error: z.ZodError): string {
+  const issue = error.issues[0] ?? error.errors[0];
+  if (!issue) return "Please check the registration form";
+
+  const field = issue.path[0];
+  const label =
+    typeof field === "string" ? (fieldLabels[field] ?? field) : "Field";
+
+  if (
+    issue.code === "invalid_type" &&
+    "received" in issue &&
+    issue.received === "undefined"
+  ) {
+    return `${label} is required`;
+  }
+
+  if (issue.message && issue.message !== "Required") {
+    return issue.message;
+  }
+
+  return `${label} is required`;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,11 +88,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = (await request.json()) as unknown;
-    const { firstName, lastName, email, password } = registerSchema.parse(body);
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid request body. Please try again." },
+        { status: 400 },
+      );
+    }
+
+    if (!body || typeof body !== "object") {
+      return NextResponse.json(
+        { error: "Registration details are required" },
+        { status: 400 },
+      );
+    }
+
+    const parsed = registerSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: formatRegisterError(parsed.error) },
+        { status: 400 },
+      );
+    }
+
+    const { firstName, lastName, email, password } = parsed.data;
     const normalizedEmail = email.toLowerCase();
 
-    // Check if user already exists
     const existingUser = await db.query.users.findFirst({
       where: eq(users.email, normalizedEmail),
     });
@@ -45,7 +127,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
     await db.transaction(async (tx) => {
@@ -75,20 +156,6 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const issue = error.errors[0];
-      const field = issue?.path[0];
-      const fallback =
-        typeof field === "string"
-          ? `${fieldLabels[field] ?? field} is required`
-          : "Please check the registration form";
-
-      return NextResponse.json(
-        { error: issue?.message === "Required" ? fallback : issue?.message },
-        { status: 400 },
-      );
-    }
-
     console.error("Registration error:", error);
     return NextResponse.json(
       { error: "Internal server error" },

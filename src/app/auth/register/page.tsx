@@ -9,6 +9,7 @@ import { Label } from "~/components/ui/label";
 import { toast } from "sonner";
 import { Logo } from "~/components/branding/logo";
 import { LegalAgreementNotice } from "~/components/legal/legal-links";
+import { authClient } from "~/lib/auth-client";
 import { Mail, Lock, ArrowRight, User } from "lucide-react";
 
 function RegisterForm() {
@@ -22,23 +23,39 @@ function RegisterForm() {
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
+
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
+    const trimmedEmail = email.trim();
+
+    if (!trimmedFirstName || !trimmedLastName || !trimmedEmail) {
+      toast.error("Please enter your first name, last name, and email.");
+      return;
+    }
+
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters.");
+      return;
+    }
+
     setLoading(true);
 
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firstName, lastName, email, password }),
+    const { error } = await authClient.signUp.email({
+      email: trimmedEmail,
+      password,
+      name: `${trimmedFirstName} ${trimmedLastName}`,
     });
 
     setLoading(false);
 
-    if (res.ok) {
-      toast.success("Account created successfully! Please sign in.");
-      router.push("/auth/signin");
-    } else {
-      const data = (await res.json()) as { error?: string };
-      toast.error(data.error ?? "Registration failed");
+    if (error) {
+      toast.error(error.message ?? "Registration failed");
+      return;
     }
+
+    toast.success("Account created successfully!");
+    router.push("/dashboard");
+    router.refresh();
   }
 
   return (
