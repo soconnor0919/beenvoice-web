@@ -1,30 +1,31 @@
-# Production stack (app + Postgres + MinIO). Local dev Postgres/MinIO: docker-compose.dev.yml
+# Beevoice on Coolify — single Docker Compose resource (recommended).
 #
-# Coolify: deploy docker-compose.coolify.yml as ONE Docker Compose resource (preferred),
-# or this file. S3_ENDPOINT=http://minio:9000 works only inside a single stack.
-# Application + separate MinIO → docs/COOLIFY.md.
+# Deploy: Coolify → New Resource → Docker Compose → compose file: docker-compose.coolify.yml
 #
-# After git pull, rebuild before starting — a plain `docker compose up -d` reuses
-# the existing local image and will NOT include new code. Use:
-#   ./scripts/docker-deploy.sh
-#   docker compose up -d --build
+# 1. Assign a domain to the `app` service in Coolify (SERVICE_FQDN_APP wires Traefik).
+# 2. Set AUTH_SECRET, POSTGRES_PASSWORD, MINIO_ROOT_* in the resource env (see .env.example).
+# 3. Do NOT override S3_ENDPOINT — this stack sets http://minio:9000 on the shared network.
+# 4. Rebuild after changing NEXT_PUBLIC_* (image build args use SERVICE_URL_APP).
+#
+# Migrating from Application + separate Postgres + MinIO compose:
+#   - Export Postgres data, point DATABASE_URL at this stack's `db` service, redeploy once here.
+#   - Or keep external Postgres and remove the `db` service + volume from this file.
 services:
   app:
     build:
       context: .
       args:
-        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-        BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
-    # Fixed default tag (beenvoice:local) is reused until you --build. docker-deploy.sh
-    # sets BEENVOICE_IMAGE=beenvoice:<git-sha> so each deploy gets a fresh tag.
-    image: ${BEENVOICE_IMAGE:-beenvoice:local}
+        NEXT_PUBLIC_APP_URL: ${SERVICE_URL_APP:-${NEXT_PUBLIC_APP_URL:-http://localhost:3000}}
+        BETTER_AUTH_URL: ${SERVICE_URL_APP:-${BETTER_AUTH_URL:-http://localhost:3000}}
+    image: ${BEENVOICE_IMAGE:-beenvoice:coolify}
     environment:
+      SERVICE_FQDN_APP:
       NODE_ENV: production
-      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in Coolify env}
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-postgres}
       DB_DISABLE_SSL: "true"
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      BETTER_AUTH_URL: ${SERVICE_URL_APP:-${BETTER_AUTH_URL:-http://localhost:3000}}
+      NEXT_PUBLIC_APP_URL: ${SERVICE_URL_APP:-${NEXT_PUBLIC_APP_URL:-http://localhost:3000}}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_DOMAIN: ${RESEND_DOMAIN:-}
       NEXT_PUBLIC_UMAMI_WEBSITE_ID: ${NEXT_PUBLIC_UMAMI_WEBSITE_ID:-}
@@ -40,8 +41,8 @@ services:
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       S3_REGION: ${S3_REGION:-us-east-1}
-    ports:
-      - "${WEB_PORT:-${PORT:-3000}}:3000"
+    expose:
+      - "3000"
     depends_on:
       db:
         condition: service_healthy
@@ -67,18 +68,19 @@ services:
       retries: 10
     restart: unless-stopped
 
-  # S3-compatible receipt storage. API :9000, web console :9001 (host-mapped in dev compose).
   minio:
     image: minio/minio:latest
+    # Optional: assign domains in Coolify for console / external S3 API access.
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      SERVICE_FQDN_MINIO_9001:
     volumes:
       - beenvoice_minio_data:/data
     command: server /data --console-address ":9001"
-    ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    expose:
+      - "9000"
+      - "9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s

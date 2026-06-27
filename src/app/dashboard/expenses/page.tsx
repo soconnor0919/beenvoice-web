@@ -28,17 +28,10 @@ import {
 } from "~/components/ui/select";
 import { DatePicker } from "~/components/ui/date-picker";
 import { NumberInput } from "~/components/ui/number-input";
-import { FileUpload } from "~/components/forms/file-upload";
+import { ExpenseReceiptsPanel } from "~/components/expenses/expense-receipts-panel";
+import { ExpenseReceiptIndicator } from "~/components/expenses/expense-receipt-indicator";
 import { toast } from "sonner";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  Receipt,
-  FileText,
-  Paperclip,
-  ExternalLink,
-} from "lucide-react";
+import { Plus, Pencil, Trash2, Receipt, Eye } from "lucide-react";
 import { formatCurrency, SUPPORTED_CURRENCIES } from "~/lib/currency";
 import { EXPENSE_CATEGORIES } from "~/lib/expense-categories";
 
@@ -70,14 +63,42 @@ const defaultForm: ExpenseFormData = {
   businessId: "",
 };
 
-function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+type ExpenseDialogMode = "create" | "view" | "edit";
+
+function expenseToForm(
+  expense: {
+    date: Date | string;
+    description: string;
+    amount: number;
+    currency: string;
+    category: string | null;
+    billable: boolean;
+    reimbursable: boolean;
+    taxDeductible: boolean | null;
+    notes: string | null;
+    clientId: string | null;
+    businessId: string | null;
+  },
+  defaultBusinessId: string,
+): ExpenseFormData {
+  return {
+    date: new Date(expense.date),
+    description: expense.description,
+    amount: expense.amount,
+    currency: expense.currency,
+    category: expense.category ?? "",
+    billable: expense.billable,
+    reimbursable: expense.reimbursable,
+    taxDeductible: expense.taxDeductible ?? false,
+    notes: expense.notes ?? "",
+    clientId: expense.clientId ?? "",
+    businessId: expense.businessId ?? defaultBusinessId,
+  };
 }
 
 export default function ExpensesPage() {
   const [open, setOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<ExpenseDialogMode>("create");
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<ExpenseFormData>(defaultForm);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -89,10 +110,6 @@ export default function ExpensesPage() {
     businessFilter === "all" ? undefined : { businessId: businessFilter },
   );
   const { data: clients = [] } = api.clients.getAll.useQuery();
-  const { data: receipts = [] } = api.expenses.listReceipts.useQuery(
-    { expenseId: editId! },
-    { enabled: !!editId },
-  );
 
   const defaultBusinessId = useMemo(
     () => businesses.find((b) => b.isDefault)?.id ?? businesses[0]?.id ?? "",
@@ -100,16 +117,18 @@ export default function ExpensesPage() {
   );
 
   useEffect(() => {
-    if (!open || editId || !defaultBusinessId || form.businessId) return;
+    if (!open || dialogMode !== "create" || !defaultBusinessId || form.businessId)
+      return;
     setForm((prev) => ({ ...prev, businessId: defaultBusinessId }));
-  }, [open, editId, defaultBusinessId, form.businessId]);
+  }, [open, dialogMode, defaultBusinessId, form.businessId]);
 
   const create = api.expenses.create.useMutation({
     onSuccess: (expense) => {
       if (!expense) return;
-      toast.success("Expense added");
+      toast.success("Expense saved — you can now attach receipts");
       void utils.expenses.getAll.invalidate();
       setEditId(expense.id);
+      setDialogMode("edit");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -119,6 +138,7 @@ export default function ExpensesPage() {
       void utils.expenses.getAll.invalidate();
       setOpen(false);
       setEditId(null);
+      setDialogMode("create");
       setForm(defaultForm);
     },
     onError: (e) => toast.error(e.message),
@@ -131,47 +151,30 @@ export default function ExpensesPage() {
     },
     onError: (e) => toast.error(e.message),
   });
-  const uploadReceipt = api.expenses.uploadReceipt.useMutation({
-    onSuccess: () => {
-      toast.success("Receipt uploaded");
-      if (editId) {
-        void utils.expenses.listReceipts.invalidate({ expenseId: editId });
-        void utils.expenses.getAll.invalidate();
-      }
-    },
-    onError: (e) => toast.error(e.message),
-  });
-  const deleteReceipt = api.expenses.deleteReceipt.useMutation({
-    onSuccess: () => {
-      toast.success("Receipt removed");
-      if (editId) {
-        void utils.expenses.listReceipts.invalidate({ expenseId: editId });
-        void utils.expenses.getAll.invalidate();
-      }
-    },
-    onError: (e) => toast.error(e.message),
-  });
+
+  const closeDialog = () => {
+    setOpen(false);
+    setEditId(null);
+    setDialogMode("create");
+    setForm(defaultForm);
+  };
 
   const handleOpen = () => {
     setEditId(null);
+    setDialogMode("create");
     setForm({ ...defaultForm, businessId: defaultBusinessId });
+    setOpen(true);
+  };
+  const handleView = (expense: (typeof expenses)[0]) => {
+    setEditId(expense.id);
+    setDialogMode("view");
+    setForm(expenseToForm(expense, defaultBusinessId));
     setOpen(true);
   };
   const handleEdit = (expense: (typeof expenses)[0]) => {
     setEditId(expense.id);
-    setForm({
-      date: new Date(expense.date),
-      description: expense.description,
-      amount: expense.amount,
-      currency: expense.currency,
-      category: expense.category ?? "",
-      billable: expense.billable,
-      reimbursable: expense.reimbursable,
-      taxDeductible: expense.taxDeductible ?? false,
-      notes: expense.notes ?? "",
-      clientId: expense.clientId ?? "",
-      businessId: expense.businessId ?? defaultBusinessId,
-    });
+    setDialogMode("edit");
+    setForm(expenseToForm(expense, defaultBusinessId));
     setOpen(true);
   };
   const handleSubmit = () => {
@@ -195,36 +198,6 @@ export default function ExpensesPage() {
     else create.mutate(payload);
   };
 
-  const handleReceiptFiles = async (files: File[]) => {
-    if (!editId) {
-      toast.error("Save the expense before uploading receipts");
-      return;
-    }
-    for (const file of files) {
-      const data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          const base64 = result.split(",")[1];
-          if (!base64) {
-            reject(new Error("Failed to read file"));
-            return;
-          }
-          resolve(base64);
-        };
-        reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(file);
-      });
-
-      await uploadReceipt.mutateAsync({
-        expenseId: editId,
-        filename: file.name,
-        mimeType: file.type || "application/octet-stream",
-        data,
-      });
-    }
-  };
-
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
   const billableTotal = expenses
     .filter((e) => e.billable)
@@ -232,6 +205,30 @@ export default function ExpensesPage() {
   const deductibleTotal = expenses
     .filter((e) => e.taxDeductible)
     .reduce((s, e) => s + e.amount, 0);
+  const withReceipts = expenses.filter((e) => e.receiptCount > 0).length;
+
+  const isViewMode = dialogMode === "view";
+  const isEditMode = dialogMode === "edit";
+  const isCreateMode = dialogMode === "create";
+
+  const dialogTitle = isCreateMode
+    ? "Add expense"
+    : isViewMode
+      ? "View expense"
+      : "Edit expense";
+
+  const businessName =
+    businesses.find((b) => b.id === form.businessId)?.name ??
+    (form.businessId ? "Unknown business" : "Default business");
+  const clientName = form.clientId
+    ? (clients.find((c) => c.id === form.clientId)?.name ?? "Unknown client")
+    : "No client";
+
+  const formattedDate = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(form.date);
 
   return (
     <DashboardPage>
@@ -299,9 +296,9 @@ export default function ExpensesPage() {
         <Card>
           <CardContent className="p-4">
             <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-              Count
+              With receipts
             </p>
-            <p className="mt-1 text-2xl font-bold">{expenses.length}</p>
+            <p className="mt-1 text-2xl font-bold">{withReceipts}</p>
           </CardContent>
         </Card>
       </div>
@@ -330,84 +327,126 @@ export default function ExpensesPage() {
               }
             />
           ) : (
-            <div className="divide-y">
-              {expenses.map((expense) => (
-                <div
-                  key={expense.id}
-                  className="flex items-start justify-between gap-3 p-4"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium">{expense.description}</p>
-                      {expense.billable && (
-                        <Badge variant="secondary" className="text-xs">
-                          Billable
-                        </Badge>
-                      )}
-                      {expense.reimbursable && (
-                        <Badge variant="outline" className="text-xs">
-                          Reimbursable
-                        </Badge>
-                      )}
-                      {expense.taxDeductible && (
-                        <Badge
-                          variant="outline"
-                          className="border-green-300 text-xs text-green-600"
-                        >
-                          Tax Deductible
-                        </Badge>
-                      )}
-                      {expense.category && (
-                        <Badge variant="outline" className="text-xs">
-                          {expense.category}
-                        </Badge>
-                      )}
-                      {(expense.receipts?.length ?? 0) > 0 && (
-                        <Badge variant="outline" className="text-xs">
-                          <Paperclip className="mr-1 h-3 w-3" />
-                          {expense.receipts?.length}
-                        </Badge>
+            <>
+              <div className="text-muted-foreground hidden border-b px-4 py-2 text-xs font-medium tracking-wide uppercase sm:grid sm:grid-cols-[1fr_88px_96px_auto] sm:gap-3">
+                <span>Expense</span>
+                <span className="text-center">Receipts</span>
+                <span className="text-right">Amount</span>
+                <span className="w-[108px]" />
+              </div>
+              <div className="divide-y">
+                {expenses.map((expense) => (
+                  <div
+                    key={expense.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleView(expense)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleView(expense);
+                      }
+                    }}
+                    className="hover:bg-muted/40 focus-visible:ring-ring flex cursor-pointer flex-col gap-3 p-4 transition-colors focus-visible:ring-2 focus-visible:outline-none sm:grid sm:grid-cols-[1fr_88px_96px_auto] sm:items-start sm:gap-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium">{expense.description}</p>
+                        {expense.billable && (
+                          <Badge variant="secondary" className="text-xs">
+                            Billable
+                          </Badge>
+                        )}
+                        {expense.reimbursable && (
+                          <Badge variant="outline" className="text-xs">
+                            Reimbursable
+                          </Badge>
+                        )}
+                        {expense.taxDeductible && (
+                          <Badge
+                            variant="outline"
+                            className="border-green-300 text-xs text-green-600"
+                          >
+                            Tax Deductible
+                          </Badge>
+                        )}
+                        {expense.category && (
+                          <Badge variant="outline" className="text-xs">
+                            {expense.category}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-muted-foreground mt-0.5 text-xs">
+                        {new Intl.DateTimeFormat("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        }).format(new Date(expense.date))}
+                        {expense.business ? ` · ${expense.business.name}` : ""}
+                        {expense.client ? ` · ${expense.client.name}` : ""}
+                      </p>
+                      {expense.notes && (
+                        <p className="text-muted-foreground mt-1 text-xs">
+                          {expense.notes}
+                        </p>
                       )}
                     </div>
-                    <p className="text-muted-foreground mt-0.5 text-xs">
-                      {new Intl.DateTimeFormat("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      }).format(new Date(expense.date))}
-                      {expense.business ? ` · ${expense.business.name}` : ""}
-                      {expense.client ? ` · ${expense.client.name}` : ""}
-                    </p>
-                    {expense.notes && (
-                      <p className="text-muted-foreground mt-1 text-xs">
-                        {expense.notes}
+
+                    <div
+                      className="flex items-center sm:justify-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="text-muted-foreground mr-2 text-xs sm:hidden">
+                        Receipts
+                      </span>
+                      <ExpenseReceiptIndicator
+                        expenseId={expense.id}
+                        receiptCount={expense.receiptCount}
+                        receiptPreview={expense.receiptPreview}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between sm:contents">
+                      <p className="font-semibold sm:text-right">
+                        {formatCurrency(expense.amount, expense.currency)}
                       </p>
-                    )}
+                      <div
+                        className="flex flex-shrink-0 items-center gap-1 sm:gap-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleView(expense)}
+                          title="View expense"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleEdit(expense)}
+                          title="Edit expense"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive h-8 w-8 p-0"
+                          onClick={() => setDeleteId(expense.id)}
+                          title="Delete expense"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex flex-shrink-0 items-center gap-2">
-                    <p className="font-semibold">
-                      {formatCurrency(expense.amount, expense.currency)}
-                    </p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => handleEdit(expense)}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive h-8 w-8 p-0"
-                      onClick={() => setDeleteId(expense.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -418,15 +457,95 @@ export default function ExpensesPage() {
           setOpen(next);
           if (!next) {
             setEditId(null);
+            setDialogMode("create");
             setForm(defaultForm);
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>{editId ? "Edit Expense" : "Add Expense"}</DialogTitle>
+            <DialogTitle>{dialogTitle}</DialogTitle>
+            {isCreateMode && (
+              <DialogDescription>
+                Fill in the details below. You can attach receipts after saving.
+              </DialogDescription>
+            )}
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {isViewMode ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1 sm:col-span-2">
+                  <p className="text-muted-foreground text-sm font-medium">
+                    Description
+                  </p>
+                  <p className="text-sm">{form.description}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground text-sm font-medium">
+                    Amount
+                  </p>
+                  <p className="text-sm font-semibold">
+                    {formatCurrency(form.amount, form.currency)}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground text-sm font-medium">
+                    Date
+                  </p>
+                  <p className="text-sm">{formattedDate}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground text-sm font-medium">
+                    Category
+                  </p>
+                  <p className="text-sm">{form.category || "None"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground text-sm font-medium">
+                    Business
+                  </p>
+                  <p className="text-sm">{businessName}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-muted-foreground text-sm font-medium">
+                    Client
+                  </p>
+                  <p className="text-sm">{clientName}</p>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <p className="text-muted-foreground text-sm font-medium">
+                    Flags
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {form.billable ? (
+                      <Badge variant="secondary">Billable</Badge>
+                    ) : (
+                      <Badge variant="outline">Not billable</Badge>
+                    )}
+                    {form.reimbursable ? (
+                      <Badge variant="outline">Reimbursable</Badge>
+                    ) : null}
+                    {form.taxDeductible ? (
+                      <Badge
+                        variant="outline"
+                        className="border-green-300 text-green-600"
+                      >
+                        Tax deductible
+                      </Badge>
+                    ) : null}
+                  </div>
+                </div>
+                {form.notes ? (
+                  <div className="space-y-1 sm:col-span-2">
+                    <p className="text-muted-foreground text-sm font-medium">
+                      Notes
+                    </p>
+                    <p className="text-sm whitespace-pre-wrap">{form.notes}</p>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <>
             <div className="space-y-2">
               <Label>Description *</Label>
               <Input
@@ -584,82 +703,25 @@ export default function ExpensesPage() {
                 placeholder="Additional details…"
               />
             </div>
-
-            {editId ? (
-              <div className="space-y-3 border-t pt-4">
-                <Label>Receipts</Label>
-                {receipts.length > 0 && (
-                  <div className="space-y-2">
-                    {receipts.map((receipt) => {
-                      const isImage = receipt.mimeType.startsWith("image/");
-                      const url = `/api/receipts/${receipt.id}`;
-                      return (
-                        <div
-                          key={receipt.id}
-                          className="flex items-center gap-3 rounded-md border p-2"
-                        >
-                          {isImage ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={url}
-                              alt={receipt.originalFilename}
-                              className="h-12 w-12 rounded object-cover"
-                            />
-                          ) : (
-                            <div className="bg-muted flex h-12 w-12 items-center justify-center rounded">
-                              <FileText className="text-muted-foreground h-6 w-6" />
-                            </div>
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium">
-                              {receipt.originalFilename}
-                            </p>
-                            <p className="text-muted-foreground text-xs">
-                              {formatFileSize(receipt.sizeBytes)}
-                            </p>
-                          </div>
-                          <Button variant="ghost" size="sm" asChild>
-                            <a href={url} target="_blank" rel="noreferrer">
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive"
-                            onClick={() =>
-                              deleteReceipt.mutate({ id: receipt.id })
-                            }
-                            disabled={deleteReceipt.isPending}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                <FileUpload
-                  onFilesSelected={(files) => void handleReceiptFiles(files)}
-                  accept={{
-                    "image/*": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic"],
-                    "application/pdf": [".pdf"],
-                  }}
-                  maxFiles={5}
-                  maxSize={10 * 1024 * 1024}
-                  disabled={uploadReceipt.isPending}
-                  placeholder="Drop receipts here"
-                  description="Images or PDF, up to 10MB each"
-                />
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-xs">
-                Save the expense first, then you can attach receipts.
-              </p>
+              </>
             )}
+
+            <ExpenseReceiptsPanel expenseId={editId} readOnly={isViewMode} />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+          <DialogFooter className="gap-2 sm:gap-0">
+            {isViewMode ? (
+              <>
+                <Button variant="outline" onClick={closeDialog}>
+                  Close
+                </Button>
+                <Button onClick={() => setDialogMode("edit")}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+              </>
+            ) : (
+              <>
+            <Button variant="outline" onClick={closeDialog}>
               Cancel
             </Button>
             <Button
@@ -668,10 +730,12 @@ export default function ExpensesPage() {
             >
               {create.isPending || update.isPending
                 ? "Saving…"
-                : editId
+                : isEditMode
                   ? "Update"
-                  : "Add Expense"}
+                  : "Save & add receipts"}
             </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

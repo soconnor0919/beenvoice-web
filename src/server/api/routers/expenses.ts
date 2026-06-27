@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import {
   expenses,
@@ -132,15 +132,66 @@ export const expensesRouter = createTRPCRouter({
         conditions.push(eq(expenses.businessId, input.businessId));
       }
 
-      return await ctx.db.query.expenses.findMany({
+      const rows = await ctx.db.query.expenses.findMany({
         where: and(...conditions),
         with: {
           client: true,
           business: true,
           invoice: true,
-          receipts: true,
         },
         orderBy: [desc(expenses.date)],
+      });
+
+      const expenseIds = rows.map((e) => e.id);
+      if (expenseIds.length === 0) return [];
+
+      const receiptMeta = await ctx.db
+        .select({
+          expenseId: expenseReceipts.expenseId,
+          id: expenseReceipts.id,
+          mimeType: expenseReceipts.mimeType,
+          originalFilename: expenseReceipts.originalFilename,
+          createdAt: expenseReceipts.createdAt,
+        })
+        .from(expenseReceipts)
+        .where(inArray(expenseReceipts.expenseId, expenseIds))
+        .orderBy(desc(expenseReceipts.createdAt));
+
+      const receiptStats = new Map<
+        string,
+        {
+          receiptCount: number;
+          receiptPreview: {
+            id: string;
+            mimeType: string;
+            originalFilename: string;
+          } | null;
+        }
+      >();
+
+      for (const receipt of receiptMeta) {
+        const existing = receiptStats.get(receipt.expenseId);
+        if (existing) {
+          existing.receiptCount += 1;
+        } else {
+          receiptStats.set(receipt.expenseId, {
+            receiptCount: 1,
+            receiptPreview: {
+              id: receipt.id,
+              mimeType: receipt.mimeType,
+              originalFilename: receipt.originalFilename,
+            },
+          });
+        }
+      }
+
+      return rows.map((expense) => {
+        const stats = receiptStats.get(expense.id);
+        return {
+          ...expense,
+          receiptCount: stats?.receiptCount ?? 0,
+          receiptPreview: stats?.receiptPreview ?? null,
+        };
       });
     }),
 

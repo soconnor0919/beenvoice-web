@@ -41,6 +41,7 @@ export const env = createEnv({
     S3_ACCESS_KEY: z.string().optional(),
     S3_SECRET_KEY: z.string().optional(),
     S3_REGION: z.string().optional(),
+    S3_FORCE_PATH_STYLE: optionalEnvBoolean(),
     // SSO / Authentik (optional)
     AUTHENTIK_ISSUER: z.string().url().optional(),
     AUTHENTIK_CLIENT_ID: z.string().optional(),
@@ -87,6 +88,7 @@ export const env = createEnv({
     S3_ACCESS_KEY: process.env.S3_ACCESS_KEY,
     S3_SECRET_KEY: process.env.S3_SECRET_KEY,
     S3_REGION: process.env.S3_REGION,
+    S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_UMAMI_WEBSITE_ID: process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID,
     NEXT_PUBLIC_UMAMI_SCRIPT_URL: process.env.NEXT_PUBLIC_UMAMI_SCRIPT_URL,

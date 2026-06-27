@@ -22,6 +22,34 @@ type S3Module = typeof import("@aws-sdk/client-s3");
 let s3ModulePromise: Promise<S3Module> | null = null;
 let s3Client: InstanceType<S3Module["S3Client"]> | null = null;
 let s3DnsHintLogged = false;
+let s3BareMinioHintLogged = false;
+
+function shouldForcePathStyle(): boolean {
+  const override = process.env.S3_FORCE_PATH_STYLE?.trim().toLowerCase();
+  if (override === "true" || override === "1") return true;
+  if (override === "false" || override === "0") return false;
+  return Boolean(process.env.S3_ENDPOINT);
+}
+
+function logBareMinioEndpointHint(): void {
+  if (s3BareMinioHintLogged || process.env.NODE_ENV !== "production") return;
+  const endpoint = process.env.S3_ENDPOINT;
+  if (!endpoint) return;
+  try {
+    const { hostname } = new URL(endpoint);
+    if (hostname !== "minio") return;
+    s3BareMinioHintLogged = true;
+    console.warn(
+      "[object-storage] S3_ENDPOINT hostname is bare 'minio'. " +
+        "That only resolves inside a single Docker Compose stack. " +
+        "Coolify Application + separate MinIO compose: set S3_ENDPOINT to " +
+        "SERVICE_URL_MINIO_9000 (public domain) or http://minio-<resource-uuid>:9000. " +
+        "See docs/COOLIFY.md.",
+    );
+  } catch {
+    // Invalid URL — env validation or S3 client will surface it.
+  }
+}
 
 function logS3DnsHint(error: unknown): void {
   if (s3DnsHintLogged) return;
@@ -50,6 +78,7 @@ async function getS3() {
   }
   const mod = await s3ModulePromise;
   if (!s3Client) {
+    logBareMinioEndpointHint();
     s3Client = new mod.S3Client({
       region: process.env.S3_REGION ?? "us-east-1",
       endpoint: process.env.S3_ENDPOINT,
@@ -57,8 +86,8 @@ async function getS3() {
         accessKeyId: process.env.S3_ACCESS_KEY!,
         secretAccessKey: process.env.S3_SECRET_KEY!,
       },
-      // Required for MinIO and most S3-compatible endpoints.
-      forcePathStyle: Boolean(process.env.S3_ENDPOINT),
+      // Required for MinIO and most S3-compatible endpoints (including HTTPS proxies).
+      forcePathStyle: shouldForcePathStyle(),
     });
   }
   return { client: s3Client, ...mod };
