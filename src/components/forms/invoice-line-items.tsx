@@ -10,11 +10,23 @@ import { DatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { NumberInput } from "~/components/ui/number-input";
 import { cn } from "~/lib/utils";
+import {
+  calculateLineItemAmount,
+  getLineItemBillingType,
+  type LineItemBillingType,
+} from "~/lib/invoice-line-item";
 import { parseLineItem, type ParsedLineItem } from "~/lib/parse-line-item";
 import {
   useLineItemSuggestions,
   type LineItemSuggestion,
 } from "~/hooks/use-line-item-suggestions";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 
 interface InvoiceItem {
   id: string;
@@ -23,6 +35,7 @@ interface InvoiceItem {
   hours: number;
   rate: number;
   amount: number;
+  billingType?: LineItemBillingType;
 }
 
 interface InvoiceLineItemsProps {
@@ -149,13 +162,21 @@ function DescriptionAutocomplete({
   );
 }
 
+const LINE_ITEM_GRID =
+  "grid-cols-[minmax(11.5rem,auto)_minmax(160px,1fr)_76px_96px_108px_88px_28px]";
+
 const LineItemCard = React.forwardRef<HTMLDivElement, LineItemRowProps>(
   ({ item, index, canRemove, onRemove, onUpdate, suggestions, onSelectSuggestion, onDescriptionChange, readOnly }, ref) => {
+    const billingType = item.billingType ?? getLineItemBillingType(item.hours);
+    const isFixed = billingType === "fixed";
+    const lineTotal = calculateLineItemAmount(item.hours, item.rate);
+
     return (
       <div
         ref={ref}
         className={cn(
-          "group hover:bg-muted/30 hidden min-h-11 grid-cols-[minmax(11.5rem,auto)_minmax(180px,1fr)_96px_108px_88px_28px] items-center gap-1.5 border-b px-2 py-1.5 transition-colors md:grid",
+          "group hover:bg-muted/30 hidden min-h-11 items-center gap-1.5 border-b px-2 py-1.5 transition-colors md:grid",
+          LINE_ITEM_GRID,
         )}
       >
         <DatePicker
@@ -177,16 +198,36 @@ const LineItemCard = React.forwardRef<HTMLDivElement, LineItemRowProps>(
           disabled={readOnly}
         />
 
-        <NumberInput
-          value={item.hours}
-          onChange={(value) => onUpdate(index, "hours", value)}
-          min={0}
-          step={0.25}
-          width="full"
-          className="h-8 font-mono [&_button]:h-7 [&_button]:w-5 [&_input]:min-w-10 [&_input]:text-xs"
-          suffix="h"
+        <Select
+          value={billingType}
+          onValueChange={(value: LineItemBillingType) =>
+            onUpdate(index, "billingType", value)
+          }
           disabled={readOnly}
-        />
+        >
+          <SelectTrigger className="h-8 w-full px-2 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="hourly">Hourly</SelectItem>
+            <SelectItem value="fixed">Fixed</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {isFixed ? (
+          <span className="text-muted-foreground text-center text-xs">—</span>
+        ) : (
+          <NumberInput
+            value={item.hours}
+            onChange={(value) => onUpdate(index, "hours", value)}
+            min={0}
+            step={0.25}
+            width="full"
+            className="h-8 font-mono [&_button]:h-7 [&_button]:w-5 [&_input]:min-w-10 [&_input]:text-xs"
+            suffix="h"
+            disabled={readOnly}
+          />
+        )}
 
         <NumberInput
           value={item.rate}
@@ -200,7 +241,7 @@ const LineItemCard = React.forwardRef<HTMLDivElement, LineItemRowProps>(
         />
 
         <div className="text-primary text-right font-mono text-sm font-semibold tabular-nums">
-          ${(item.hours * item.rate).toFixed(2)}
+          ${lineTotal.toFixed(2)}
         </div>
 
         {!readOnly ? (
@@ -235,6 +276,10 @@ function MobileLineItem({
   onDescriptionChange,
   readOnly,
 }: LineItemRowProps) {
+  const billingType = item.billingType ?? getLineItemBillingType(item.hours);
+  const isFixed = billingType === "fixed";
+  const lineTotal = calculateLineItemAmount(item.hours, item.rate);
+
   return (
     <div
       id={`invoice-item-${index}-mobile`}
@@ -264,16 +309,33 @@ function MobileLineItem({
           inputClassName="h-8 px-2 text-xs"
           disabled={readOnly}
         />
-        <NumberInput
-          value={item.hours}
-          onChange={(value) => onUpdate(index, "hours", value)}
-          min={0}
-          step={0.25}
-          width="full"
-          className="h-8 w-[88px] shrink-0 font-mono [&_button]:h-7 [&_button]:w-5 [&_input]:min-w-8 [&_input]:text-xs"
-          suffix="h"
+        <Select
+          value={billingType}
+          onValueChange={(value: LineItemBillingType) =>
+            onUpdate(index, "billingType", value)
+          }
           disabled={readOnly}
-        />
+        >
+          <SelectTrigger className="h-8 w-[76px] shrink-0 px-2 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="hourly">Hourly</SelectItem>
+            <SelectItem value="fixed">Fixed</SelectItem>
+          </SelectContent>
+        </Select>
+        {!isFixed ? (
+          <NumberInput
+            value={item.hours}
+            onChange={(value) => onUpdate(index, "hours", value)}
+            min={0}
+            step={0.25}
+            width="full"
+            className="h-8 w-[88px] shrink-0 font-mono [&_button]:h-7 [&_button]:w-5 [&_input]:min-w-8 [&_input]:text-xs"
+            suffix="h"
+            disabled={readOnly}
+          />
+        ) : null}
         <NumberInput
           value={item.rate}
           onChange={(value) => onUpdate(index, "rate", value)}
@@ -285,7 +347,7 @@ function MobileLineItem({
           disabled={readOnly}
         />
         <span className="text-primary ml-auto font-mono text-sm font-semibold tabular-nums">
-          ${(item.hours * item.rate).toFixed(2)}
+          ${lineTotal.toFixed(2)}
         </span>
         {!readOnly ? (
           <Button
@@ -357,6 +419,7 @@ export function InvoiceLineItems({
     onUpdateItem(index, "description", s.description);
     onUpdateItem(index, "hours", s.hours);
     onUpdateItem(index, "rate", s.rate);
+    onUpdateItem(index, "billingType", "hourly");
     setSuggestions([]);
     setQueriedIndex(null);
   }
@@ -374,9 +437,10 @@ export function InvoiceLineItems({
       ) : null}
       <AnimatePresence>
         <div className="space-y-0 md:overflow-hidden md:rounded-lg md:border">
-          <div className="bg-muted/60 text-muted-foreground hidden grid-cols-[minmax(11.5rem,auto)_minmax(180px,1fr)_96px_108px_88px_28px] gap-1.5 border-b px-2 py-1.5 text-[11px] font-semibold tracking-wide uppercase md:grid">
+          <div className={cn("bg-muted/60 text-muted-foreground hidden gap-1.5 border-b px-2 py-1.5 text-[11px] font-semibold tracking-wide uppercase md:grid", LINE_ITEM_GRID)}>
             <span>Date</span>
             <span>Description</span>
+            <span className="text-center">Type</span>
             <span className="text-center">Hours</span>
             <span className="text-center">Rate</span>
             <span className="text-right">Amount</span>

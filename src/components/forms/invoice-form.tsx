@@ -60,6 +60,11 @@ import {
 import { STATUS_OPTIONS } from "./invoice/types";
 import type { InvoiceFormData, InvoiceItem } from "./invoice/types";
 import type { ParsedLineItem } from "~/lib/parse-line-item";
+import {
+  applyBillingTypeChange,
+  calculateLineItemAmount,
+  getLineItemBillingType,
+} from "~/lib/invoice-line-item";
 import { InvoicePdfPreviewPanel } from "./invoice/invoice-pdf-preview-panel";
 
 import { CountUp } from "~/components/ui/count-up";
@@ -123,6 +128,7 @@ function createDefaultInvoiceFormData(): InvoiceFormData {
         hours: 1,
         rate: 0,
         amount: 0,
+        billingType: "hourly",
       },
     ],
   };
@@ -180,6 +186,7 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
           hours: item.hours,
           rate: item.rate,
           amount: item.amount,
+          billingType: getLineItemBillingType(item.hours),
         })) || [];
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Sync loaded invoice data into the edit form.
       setFormData({
@@ -206,6 +213,7 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
                   hours: 1,
                   rate: 0,
                   amount: 0,
+                  billingType: "hourly",
                 },
               ],
       });
@@ -238,7 +246,7 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
 
   const totals = React.useMemo(() => {
     const subtotal = formData.items.reduce(
-      (sum, item) => sum + item.hours * item.rate,
+      (sum, item) => sum + calculateLineItemAmount(item.hours, item.rate),
       0,
     );
     const taxAmount = (subtotal * formData.taxRate) / 100;
@@ -266,9 +274,10 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
       items: formData.items.map((item) => ({
         date: item.date,
         description: item.description || "Service",
-        hours: item.hours,
-        rate: item.rate,
-      })),
+          hours: item.hours,
+          rate: item.rate,
+          amount: calculateLineItemAmount(item.hours, item.rate),
+        })),
     }),
     [formData],
   );
@@ -298,6 +307,7 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
           hours: 1,
           rate: prev.defaultHourlyRate ?? 0,
           amount: prev.defaultHourlyRate ?? 0,
+          billingType: "hourly",
         },
       ],
     }));
@@ -313,7 +323,11 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
           description: parsed.description,
           hours: parsed.hours ?? 1,
           rate: parsed.rate ?? prev.defaultHourlyRate ?? 0,
-          amount: (parsed.hours ?? 1) * (parsed.rate ?? prev.defaultHourlyRate ?? 0),
+          amount: calculateLineItemAmount(
+            parsed.hours ?? 1,
+            parsed.rate ?? prev.defaultHourlyRate ?? 0,
+          ),
+          billingType: "hourly",
         },
       ],
     }));
@@ -333,14 +347,23 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
     setFormData((prev) => ({
       ...prev,
       items: prev.items.map((item, i) => {
-        if (i === idx) {
-          const updated = { ...item, [field]: value };
-          if (field === "hours" || field === "rate") {
-            updated.amount = updated.hours * updated.rate;
-          }
-          return updated;
+        if (i !== idx) return item;
+
+        if (field === "billingType" && (value === "hourly" || value === "fixed")) {
+          const next = applyBillingTypeChange(value, item);
+          return {
+            ...item,
+            ...next,
+            billingType: value,
+          };
         }
-        return item;
+
+        const updated = { ...item, [field]: value };
+        if (field === "hours" || field === "rate") {
+          updated.amount = calculateLineItemAmount(updated.hours, updated.rate);
+          updated.billingType = getLineItemBillingType(updated.hours);
+        }
+        return updated;
       }),
     }));
   };
@@ -435,7 +458,7 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
           description: i.description,
           hours: i.hours,
           rate: i.rate,
-          amount: i.hours * i.rate,
+          amount: calculateLineItemAmount(i.hours, i.rate),
         })),
       };
       if (invoiceId && invoiceId !== "new" && invoiceId !== undefined)
@@ -771,7 +794,10 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
                   <span className="text-muted-foreground">Hours</span>
                   <span className="font-mono text-xl font-semibold">
                     <CountUp
-                      value={formData.items.reduce((s, i) => s + i.hours, 0)}
+                      value={formData.items.reduce(
+                        (s, i) => s + (i.hours > 0 ? i.hours : 0),
+                        0,
+                      )}
                       suffix="h"
                     />
                   </span>
@@ -898,7 +924,7 @@ export default function InvoiceForm({ invoiceId }: InvoiceFormProps) {
                           description: item.description,
                           hours: item.hours,
                           rate: item.rate,
-                          amount: item.hours * item.rate,
+                          amount: calculateLineItemAmount(item.hours, item.rate),
                         })),
                       }}
                     />

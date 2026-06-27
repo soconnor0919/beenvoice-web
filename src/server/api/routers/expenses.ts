@@ -1,9 +1,24 @@
 import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { expenses, clients, businesses, invoices } from "~/server/db/schema";
+import {
+  expenses,
+  clients,
+  invoices,
+  expenseReceipts,
+} from "~/server/db/schema";
 import { TRPCError } from "@trpc/server";
 import { EXPENSE_CATEGORIES } from "~/lib/expense-categories";
+import {
+  resolveBusinessForExpense,
+  verifyBusinessAccess,
+} from "~/server/api/lib/business-access";
+import {
+  deleteObject,
+  isAllowedReceiptMime,
+  putObject,
+  RECEIPT_MAX_BYTES,
+} from "~/lib/object-storage";
 
 export { EXPENSE_CATEGORIES };
 
@@ -26,14 +41,108 @@ const updateExpenseSchema = createExpenseSchema.partial().extend({
   id: z.string(),
 });
 
-export const expensesRouter = createTRPCRouter({
-  getAll: protectedProcedure.query(async ({ ctx }) => {
-    return await ctx.db.query.expenses.findMany({
-      where: eq(expenses.createdById, ctx.session.user.id),
-      with: { client: true, business: true, invoice: true },
-      orderBy: [desc(expenses.date)],
+async function verifyClientAccess(
+  ctx: { db: typeof import("~/server/db").db; session: { user: { id: string } } },
+  clientId: string,
+) {
+  const client = await ctx.db.query.clients.findFirst({
+    where: and(
+      eq(clients.id, clientId),
+      eq(clients.createdById, ctx.session.user.id),
+    ),
+  });
+  if (!client) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Client not found",
     });
-  }),
+  }
+  return client;
+}
+
+async function verifyInvoiceAccess(
+  ctx: { db: typeof import("~/server/db").db; session: { user: { id: string } } },
+  invoiceId: string,
+) {
+  const invoice = await ctx.db.query.invoices.findFirst({
+    where: and(
+      eq(invoices.id, invoiceId),
+      eq(invoices.createdById, ctx.session.user.id),
+    ),
+  });
+  if (!invoice) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Invoice not found",
+    });
+  }
+  return invoice;
+}
+
+async function resolveExpenseBusinessId(
+  ctx: { db: typeof import("~/server/db").db; session: { user: { id: string } } },
+  businessId: string | null,
+  invoice?: { businessId: string | null } | null,
+) {
+  const explicitBusinessId =
+    businessId && businessId.trim() !== "" ? businessId : null;
+  const inheritedBusinessId =
+    !explicitBusinessId && invoice?.businessId ? invoice.businessId : null;
+
+  const resolved = await resolveBusinessForExpense(
+    ctx,
+    explicitBusinessId ?? inheritedBusinessId,
+  );
+  return resolved?.id ?? null;
+}
+
+async function getOwnedExpense(
+  ctx: { db: typeof import("~/server/db").db; session: { user: { id: string } } },
+  expenseId: string,
+) {
+  const expense = await ctx.db.query.expenses.findFirst({
+    where: and(
+      eq(expenses.id, expenseId),
+      eq(expenses.createdById, ctx.session.user.id),
+    ),
+  });
+  if (!expense) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Expense not found",
+    });
+  }
+  return expense;
+}
+
+export const expensesRouter = createTRPCRouter({
+  getAll: protectedProcedure
+    .input(
+      z
+        .object({
+          businessId: z.string().optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const conditions = [eq(expenses.createdById, ctx.session.user.id)];
+
+      if (input?.businessId) {
+        await verifyBusinessAccess(ctx, input.businessId);
+        conditions.push(eq(expenses.businessId, input.businessId));
+      }
+
+      return await ctx.db.query.expenses.findMany({
+        where: and(...conditions),
+        with: {
+          client: true,
+          business: true,
+          invoice: true,
+          receipts: true,
+        },
+        orderBy: [desc(expenses.date)],
+      });
+    }),
 
   getById: protectedProcedure
     .input(z.object({ id: z.string() }))
@@ -43,7 +152,12 @@ export const expensesRouter = createTRPCRouter({
           eq(expenses.id, input.id),
           eq(expenses.createdById, ctx.session.user.id),
         ),
-        with: { client: true, business: true, invoice: true },
+        with: {
+          client: true,
+          business: true,
+          invoice: true,
+          receipts: true,
+        },
       });
 
       if (!expense) {
@@ -69,50 +183,26 @@ export const expensesRouter = createTRPCRouter({
       };
 
       if (clean.clientId) {
-        const client = await ctx.db.query.clients.findFirst({
-          where: and(
-            eq(clients.id, clean.clientId),
-            eq(clients.createdById, ctx.session.user.id),
-          ),
-        });
-        if (!client)
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Client not found",
-          });
+        await verifyClientAccess(ctx, clean.clientId);
       }
 
-      if (clean.businessId) {
-        const business = await ctx.db.query.businesses.findFirst({
-          where: and(
-            eq(businesses.id, clean.businessId),
-            eq(businesses.createdById, ctx.session.user.id),
-          ),
-        });
-        if (!business)
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Business not found",
-          });
-      }
+      const invoice = clean.invoiceId
+        ? await verifyInvoiceAccess(ctx, clean.invoiceId)
+        : null;
 
-      if (clean.invoiceId) {
-        const invoice = await ctx.db.query.invoices.findFirst({
-          where: and(
-            eq(invoices.id, clean.invoiceId),
-            eq(invoices.createdById, ctx.session.user.id),
-          ),
-        });
-        if (!invoice)
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Invoice not found",
-          });
-      }
+      const businessId = await resolveExpenseBusinessId(
+        ctx,
+        clean.businessId,
+        invoice,
+      );
 
       const [expense] = await ctx.db
         .insert(expenses)
-        .values({ ...clean, createdById: ctx.session.user.id })
+        .values({
+          ...clean,
+          businessId,
+          createdById: ctx.session.user.id,
+        })
         .returning();
 
       return expense;
@@ -137,17 +227,56 @@ export const expensesRouter = createTRPCRouter({
         });
       }
 
-      const clean = {
-        ...data,
-        clientId: data.clientId?.trim() ?? null,
-        businessId: data.businessId?.trim() ?? null,
-        invoiceId: data.invoiceId?.trim() ?? null,
-        category: data.category?.trim() ?? null,
-        notes: data.notes?.trim() ?? null,
-        updatedAt: new Date(),
-      };
+      const updates: Record<string, unknown> = { updatedAt: new Date() };
 
-      await ctx.db.update(expenses).set(clean).where(eq(expenses.id, id));
+      if (data.date !== undefined) updates.date = data.date;
+      if (data.description !== undefined) updates.description = data.description;
+      if (data.amount !== undefined) updates.amount = data.amount;
+      if (data.currency !== undefined) updates.currency = data.currency;
+      if (data.billable !== undefined) updates.billable = data.billable;
+      if (data.reimbursable !== undefined) updates.reimbursable = data.reimbursable;
+      if (data.taxDeductible !== undefined) updates.taxDeductible = data.taxDeductible;
+      if (data.category !== undefined) {
+        updates.category = data.category?.trim() ?? null;
+      }
+      if (data.notes !== undefined) {
+        updates.notes = data.notes?.trim() ?? null;
+      }
+
+      const nextClientId =
+        data.clientId !== undefined ? data.clientId?.trim() || null : existing.clientId;
+      if (data.clientId !== undefined) {
+        if (nextClientId) await verifyClientAccess(ctx, nextClientId);
+        updates.clientId = nextClientId;
+      }
+
+      const nextInvoiceId =
+        data.invoiceId !== undefined
+          ? data.invoiceId?.trim() || null
+          : existing.invoiceId;
+      let invoice = null;
+      if (data.invoiceId !== undefined) {
+        invoice = nextInvoiceId
+          ? await verifyInvoiceAccess(ctx, nextInvoiceId)
+          : null;
+        updates.invoiceId = nextInvoiceId;
+      } else if (nextInvoiceId) {
+        invoice = await verifyInvoiceAccess(ctx, nextInvoiceId);
+      }
+
+      if (data.businessId !== undefined || data.invoiceId !== undefined) {
+        const nextBusinessInput =
+          data.businessId !== undefined
+            ? data.businessId?.trim() || null
+            : existing.businessId;
+        updates.businessId = await resolveExpenseBusinessId(
+          ctx,
+          nextBusinessInput,
+          invoice,
+        );
+      }
+
+      await ctx.db.update(expenses).set(updates).where(eq(expenses.id, id));
 
       return { success: true };
     }),
@@ -160,6 +289,7 @@ export const expensesRouter = createTRPCRouter({
           eq(expenses.id, input.id),
           eq(expenses.createdById, ctx.session.user.id),
         ),
+        with: { receipts: true },
       });
 
       if (!existing) {
@@ -169,7 +299,100 @@ export const expensesRouter = createTRPCRouter({
         });
       }
 
+      await Promise.all(
+        existing.receipts.map((receipt) => deleteObject(receipt.storageKey)),
+      );
+
       await ctx.db.delete(expenses).where(eq(expenses.id, input.id));
+
+      return { success: true };
+    }),
+
+  listReceipts: protectedProcedure
+    .input(z.object({ expenseId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      await getOwnedExpense(ctx, input.expenseId);
+
+      return ctx.db.query.expenseReceipts.findMany({
+        where: eq(expenseReceipts.expenseId, input.expenseId),
+        orderBy: [desc(expenseReceipts.createdAt)],
+      });
+    }),
+
+  uploadReceipt: protectedProcedure
+    .input(
+      z.object({
+        expenseId: z.string(),
+        filename: z.string().min(1).max(255),
+        mimeType: z.string().min(1).max(100),
+        data: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await getOwnedExpense(ctx, input.expenseId);
+
+      if (!isAllowedReceiptMime(input.mimeType)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only images and PDF files are allowed",
+        });
+      }
+
+      const body = Buffer.from(input.data, "base64");
+      if (body.length === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "File is empty",
+        });
+      }
+      if (body.length > RECEIPT_MAX_BYTES) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "File exceeds 10MB limit",
+        });
+      }
+
+      const safeName = input.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const storageKey = `receipts/${ctx.session.user.id}/${input.expenseId}/${crypto.randomUUID()}-${safeName}`;
+
+      await putObject(storageKey, body, input.mimeType);
+
+      const [receipt] = await ctx.db
+        .insert(expenseReceipts)
+        .values({
+          expenseId: input.expenseId,
+          storageKey,
+          originalFilename: input.filename,
+          mimeType: input.mimeType,
+          sizeBytes: body.length,
+        })
+        .returning();
+
+      return receipt;
+    }),
+
+  deleteReceipt: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const receipt = await ctx.db.query.expenseReceipts.findFirst({
+        where: eq(expenseReceipts.id, input.id),
+        with: { expense: true },
+      });
+
+      if (
+        !receipt ||
+        receipt.expense.createdById !== ctx.session.user.id
+      ) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Receipt not found",
+        });
+      }
+
+      await deleteObject(receipt.storageKey);
+      await ctx.db
+        .delete(expenseReceipts)
+        .where(eq(expenseReceipts.id, input.id));
 
       return { success: true };
     }),

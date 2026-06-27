@@ -108,19 +108,26 @@ export function BusinessForm({ businessId, mode }: BusinessFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   // Fetch business data if editing
   const { data: business, isLoading: isLoadingBusiness } =
     api.businesses.getById.useQuery(
       { id: businessId! },
-      { enabled: mode === "edit" && !!businessId },
+      {
+        enabled: mode === "edit" && !!businessId,
+        refetchOnWindowFocus: false,
+      },
     );
 
   // Fetch email configuration if editing
   const { data: emailConfig, isLoading: isLoadingEmailConfig } =
     api.businesses.getEmailConfig.useQuery(
       { id: businessId! },
-      { enabled: mode === "edit" && !!businessId },
+      {
+        enabled: mode === "edit" && !!businessId,
+        refetchOnWindowFocus: false,
+      },
     );
 
   // Update email configuration mutation
@@ -142,9 +149,21 @@ export function BusinessForm({ businessId, mode }: BusinessFormProps) {
     },
   });
 
-  // Load business data when editing
   useEffect(() => {
-    if (business && mode === "edit") {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset form when navigating to a different business.
+    setInitialized(false);
+    setIsDirty(false);
+    setFormData(initialFormData);
+  }, [businessId]);
+
+  // Load business data once when editing (avoid overwriting unsaved changes on refetch)
+  useEffect(() => {
+    if (
+      business &&
+      mode === "edit" &&
+      !initialized &&
+      !isLoadingEmailConfig
+    ) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Sync loaded business data into the edit form.
       setFormData({
         name: business.name,
@@ -164,8 +183,9 @@ export function BusinessForm({ businessId, mode }: BusinessFormProps) {
         resendDomain: emailConfig?.resendDomain ?? "",
         emailFromName: emailConfig?.emailFromName ?? "",
       });
+      setInitialized(true);
     }
-  }, [business, emailConfig, mode]);
+  }, [business, emailConfig, mode, initialized, isLoadingEmailConfig]);
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));

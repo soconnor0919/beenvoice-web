@@ -7,6 +7,7 @@ import { Button } from "~/components/ui/button";
 import { Separator } from "~/components/ui/separator";
 import { api } from "~/trpc/react";
 import { generateInvoicePDF } from "~/lib/pdf-export";
+import { formatLineItemDetail } from "~/lib/invoice-line-item";
 import { toast } from "sonner";
 
 function formatDate(date: Date) {
@@ -136,7 +137,11 @@ function PublicInvoiceView({ token }: { token: string }) {
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-900 break-words">{item.description}</p>
                     <p className="text-gray-500">
-                      {item.hours} hrs @ {formatCurrency(item.rate, invoice.currency ?? "USD")}/hr
+                      {formatLineItemDetail(
+                        item.hours,
+                        item.rate,
+                        (amount) => formatCurrency(amount, invoice.currency ?? "USD"),
+                      )}
                     </p>
                   </div>
                   <p className="font-semibold text-gray-900 shrink-0">

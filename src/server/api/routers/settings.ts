@@ -1,12 +1,14 @@
 import { z } from "zod";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, count, eq, isNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import bcrypt from "bcryptjs";
+import { logAuditEvent } from "~/lib/audit-log";
 import {
   createTRPCRouter,
   protectedProcedure,
   publicProcedure,
 } from "~/server/api/trpc";
+import { requireAdmin } from "~/server/api/require-admin";
 import {
   accounts,
   users,
@@ -26,24 +28,10 @@ import {
   colorModeSchema,
   defaultColorMode,
   defaultPdfSettings,
+  pdfFontFamilySchema,
   pdfTemplateSchema,
   type ColorMode,
 } from "~/lib/branding";
-import type { db as database } from "~/server/db";
-
-async function requireAdmin(ctx: {
-  db: typeof database;
-  session: { user: { id: string } };
-}) {
-  const user = await ctx.db.query.users.findFirst({
-    where: eq(users.id, ctx.session.user.id),
-    columns: { role: true },
-  });
-
-  if (user?.role !== "admin") {
-    throw new TRPCError({ code: "FORBIDDEN" });
-  }
-}
 
 function resolveBusinessId(
   refs: { businessName?: string; businessNickname?: string },
@@ -237,10 +225,50 @@ export const settingsRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       await requireAdmin(ctx);
+
+      const existing = await ctx.db.query.users.findFirst({
+        where: eq(users.id, input.userId),
+        columns: { role: true },
+      });
+
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+
+      if (existing.role === input.role) {
+        return { success: true };
+      }
+
+      if (existing.role === "admin" && input.role === "user") {
+        const [adminCount] = await ctx.db
+          .select({ count: count() })
+          .from(users)
+          .where(eq(users.role, "admin"));
+
+        if ((adminCount?.count ?? 0) <= 1) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Cannot remove the last administrator",
+          });
+        }
+      }
+
       await ctx.db
         .update(users)
         .set({ role: input.role })
         .where(eq(users.id, input.userId));
+
+      await logAuditEvent({
+        actorUserId: ctx.session.user.id,
+        action: "user.role_updated",
+        targetType: "user",
+        targetId: input.userId,
+        metadata: {
+          previousRole: existing.role,
+          newRole: input.role,
+        },
+      });
+
       return { success: true };
     }),
 
@@ -382,6 +410,12 @@ export const settingsRouter = createTRPCRouter({
         defaultPdfSettings.pdfTemplate,
       pdfAccentColor:
         settings?.pdfAccentColor ?? defaultPdfSettings.pdfAccentColor,
+      pdfFontFamily:
+        (settings?.pdfFontFamily as "sans" | "serif" | "mono" | null) ??
+        defaultPdfSettings.pdfFontFamily,
+      pdfNumericFontFamily:
+        (settings?.pdfNumericFontFamily as "sans" | "serif" | "mono" | null) ??
+        defaultPdfSettings.pdfNumericFontFamily,
       pdfFooterText:
         settings?.pdfFooterText ?? defaultPdfSettings.pdfFooterText,
       pdfShowLogo: settings?.pdfShowLogo ?? defaultPdfSettings.pdfShowLogo,
@@ -395,6 +429,8 @@ export const settingsRouter = createTRPCRouter({
       z.object({
         pdfTemplate: pdfTemplateSchema.optional(),
         pdfAccentColor: z.string().min(4).max(50).optional(),
+        pdfFontFamily: pdfFontFamilySchema.optional(),
+        pdfNumericFontFamily: pdfFontFamilySchema.optional(),
         pdfFooterText: z.string().min(1).max(120).optional(),
         pdfShowLogo: z.boolean().optional(),
         pdfShowPageNumbers: z.boolean().optional(),
@@ -409,6 +445,11 @@ export const settingsRouter = createTRPCRouter({
           pdfTemplate: input.pdfTemplate ?? defaultPdfSettings.pdfTemplate,
           pdfAccentColor:
             input.pdfAccentColor ?? defaultPdfSettings.pdfAccentColor,
+          pdfFontFamily:
+            input.pdfFontFamily ?? defaultPdfSettings.pdfFontFamily,
+          pdfNumericFontFamily:
+            input.pdfNumericFontFamily ??
+            defaultPdfSettings.pdfNumericFontFamily,
           pdfFooterText:
             input.pdfFooterText ?? defaultPdfSettings.pdfFooterText,
           pdfShowLogo: input.pdfShowLogo ?? defaultPdfSettings.pdfShowLogo,
@@ -422,6 +463,12 @@ export const settingsRouter = createTRPCRouter({
             ...(input.pdfAccentColor && {
               pdfAccentColor: input.pdfAccentColor,
             }),
+            ...(input.pdfFontFamily && {
+              pdfFontFamily: input.pdfFontFamily,
+            }),
+            ...(input.pdfNumericFontFamily && {
+              pdfNumericFontFamily: input.pdfNumericFontFamily,
+            }),
             ...(input.pdfFooterText && { pdfFooterText: input.pdfFooterText }),
             ...(input.pdfShowLogo !== undefined && {
               pdfShowLogo: input.pdfShowLogo,
@@ -433,10 +480,20 @@ export const settingsRouter = createTRPCRouter({
           },
         });
 
+      await logAuditEvent({
+        actorUserId: ctx.session.user.id,
+        action: "platform.pdf_settings_updated",
+        targetType: "platform",
+        targetId: "global",
+        metadata: {
+          changedFields: Object.keys(input).filter(
+            (key) => input[key as keyof typeof input] !== undefined,
+          ),
+        },
+      });
+
       return { success: true };
     }),
-
-  // Update user profile
   updateProfile: protectedProcedure
     .input(
       z.object({

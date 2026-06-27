@@ -2,6 +2,7 @@
 
 import { generateInvoiceEmailTemplate } from "~/lib/email-templates";
 import { getAppUrl } from "~/lib/app-url";
+import { calculateLineItemAmount } from "~/lib/invoice-line-item";
 
 interface EmailPreviewProps {
   subject: string;
@@ -54,7 +55,7 @@ export function EmailPreview({
   const calculateTotal = () => {
     if (!invoice?.items) return 0;
     const subtotal = invoice.items.reduce(
-      (sum, item) => sum + item.hours * item.rate,
+      (sum, item) => sum + calculateLineItemAmount(item.hours, item.rate),
       0,
     );
     const taxAmount = subtotal * (invoice.taxRate / 100);
@@ -83,7 +84,7 @@ export function EmailPreview({
               description: item.description ?? "Service",
               hours: item.hours,
               rate: item.rate,
-              amount: item.amount ?? item.hours * item.rate,
+              amount: item.amount ?? calculateLineItemAmount(item.hours, item.rate),
             })) ?? [],
         },
         customContent: content,

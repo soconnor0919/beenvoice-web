@@ -42,6 +42,12 @@ export async function GET(
   const pdfBlob = await generateInvoicePDFBlob(invoice, {
     pdfTemplate: settings?.pdfTemplate as "classic" | "minimal" | undefined,
     pdfAccentColor: settings?.pdfAccentColor,
+    pdfFontFamily: settings?.pdfFontFamily as "sans" | "serif" | "mono" | undefined,
+    pdfNumericFontFamily: settings?.pdfNumericFontFamily as
+      | "sans"
+      | "serif"
+      | "mono"
+      | undefined,
     pdfFooterText: settings?.pdfFooterText,
     pdfShowLogo: settings?.pdfShowLogo,
     pdfShowPageNumbers: settings?.pdfShowPageNumbers,

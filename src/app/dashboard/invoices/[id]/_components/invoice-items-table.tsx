@@ -2,6 +2,10 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "~/components/data/data-table";
+import {
+  formatLineItemDetail,
+  isFixedLineItem,
+} from "~/lib/invoice-line-item";
 
 const formatDate = (date: Date) => {
   return new Intl.DateTimeFormat("en-US", {
@@ -58,8 +62,8 @@ const columns: ColumnDef<InvoiceItem>[] = [
           <div className="sm:hidden">
             <p className="font-medium">{item.description}</p>
             <p className="text-muted-foreground mt-0.5 text-xs">
-              {formatDate(item.date)} &middot; {item.hours}h @{" "}
-              {formatCurrency(item.rate)}/hr
+              {formatDate(item.date)} &middot;{" "}
+              {formatLineItemDetail(item.hours, item.rate, formatCurrency)}
             </p>
           </div>
         </>
@@ -69,9 +73,12 @@ const columns: ColumnDef<InvoiceItem>[] = [
   {
     accessorKey: "hours",
     header: "Hours",
-    cell: ({ row }) => (
-      <div className="text-right">{row.getValue("hours")}</div>
-    ),
+    cell: ({ row }) => {
+      const hours = row.getValue<number>("hours");
+      return (
+        <div className="text-right">{isFixedLineItem(hours) ? "—" : hours}</div>
+      );
+    },
     meta: {
       headerClassName: "hidden sm:table-cell",
       cellClassName: "hidden sm:table-cell",
@@ -80,9 +87,16 @@ const columns: ColumnDef<InvoiceItem>[] = [
   {
     accessorKey: "rate",
     header: "Rate",
-    cell: ({ row }) => (
-      <div className="text-right">{formatCurrency(row.getValue("rate"))}</div>
-    ),
+    cell: ({ row }) => {
+      const item = row.original;
+      return (
+        <div className="text-right">
+          {isFixedLineItem(item.hours)
+            ? "—"
+            : `${formatCurrency(item.rate)}/hr`}
+        </div>
+      );
+    },
     meta: {
       headerClassName: "hidden sm:table-cell",
       cellClassName: "hidden sm:table-cell",

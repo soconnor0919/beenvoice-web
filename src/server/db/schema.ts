@@ -41,6 +41,8 @@ export const platformSettings = createTable("platform_setting", (d) => ({
   id: d.varchar({ length: 50 }).notNull().primaryKey().default("global"),
   pdfTemplate: d.varchar({ length: 20 }).default("classic").notNull(),
   pdfAccentColor: d.varchar({ length: 50 }).default("#111827").notNull(),
+  pdfFontFamily: d.varchar({ length: 20 }).default("sans").notNull(),
+  pdfNumericFontFamily: d.varchar({ length: 20 }).default("mono").notNull(),
   pdfFooterText: d
     .varchar({ length: 120 })
     .default("Professional Invoicing")
@@ -66,6 +68,39 @@ export const usersRelations = relations(users, ({ many }) => ({
   invoiceTemplates: many(invoiceTemplates),
   recurringInvoices: many(recurringInvoices),
   timeEntries: many(timeEntries),
+  auditLogsAsActor: many(auditLog),
+}));
+
+export const auditLog = createTable(
+  "audit_log",
+  (d) => ({
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    actorUserId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => users.id),
+    action: d.varchar({ length: 100 }).notNull(),
+    targetType: d.varchar({ length: 50 }).notNull(),
+    targetId: d.varchar({ length: 255 }),
+    metadata: d.jsonb().$type<Record<string, unknown>>(),
+    createdAt: d.timestamp().notNull().defaultNow(),
+  }),
+  (t) => [
+    index("audit_log_actor_user_id_idx").on(t.actorUserId),
+    index("audit_log_action_idx").on(t.action),
+    index("audit_log_created_at_idx").on(t.createdAt),
+  ],
+);
+
+export const auditLogRelations = relations(auditLog, ({ one }) => ({
+  actor: one(users, {
+    fields: [auditLog.actorUserId],
+    references: [users.id],
+  }),
 }));
 
 export const accounts = createTable(
@@ -452,12 +487,37 @@ export const expenses = createTable(
     index("expense_created_by_idx").on(t.createdById),
     index("expense_client_id_idx").on(t.clientId),
     index("expense_invoice_id_idx").on(t.invoiceId),
+    index("expense_business_id_idx").on(t.businessId),
     index("expense_date_idx").on(t.date),
     index("expense_billable_idx").on(t.billable),
   ],
 );
 
-export const expensesRelations = relations(expenses, ({ one }) => ({
+export const expenseReceipts = createTable(
+  "expense_receipt",
+  (d) => ({
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    expenseId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => expenses.id, { onDelete: "cascade" }),
+    storageKey: d.varchar({ length: 500 }).notNull(),
+    originalFilename: d.varchar({ length: 255 }).notNull(),
+    mimeType: d.varchar({ length: 100 }).notNull(),
+    sizeBytes: d.integer().notNull(),
+    createdAt: d
+      .timestamp()
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  }),
+  (t) => [index("expense_receipt_expense_id_idx").on(t.expenseId)],
+);
+
+export const expensesRelations = relations(expenses, ({ one, many }) => ({
   business: one(businesses, {
     fields: [expenses.businessId],
     references: [businesses.id],
@@ -474,7 +534,18 @@ export const expensesRelations = relations(expenses, ({ one }) => ({
     fields: [expenses.createdById],
     references: [users.id],
   }),
+  receipts: many(expenseReceipts),
 }));
+
+export const expenseReceiptsRelations = relations(
+  expenseReceipts,
+  ({ one }) => ({
+    expense: one(expenses, {
+      fields: [expenseReceipts.expenseId],
+      references: [expenses.id],
+    }),
+  }),
+);
 
 export const invoiceTemplates = createTable(
   "invoice_template",

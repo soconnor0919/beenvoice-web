@@ -61,6 +61,8 @@ export function PDFDownloadButton({
       await generateInvoicePDF(pdfData, {
         pdfTemplate: pdfSettings?.pdfTemplate,
         pdfAccentColor: pdfSettings?.pdfAccentColor,
+        pdfFontFamily: pdfSettings?.pdfFontFamily,
+        pdfNumericFontFamily: pdfSettings?.pdfNumericFontFamily,
         pdfFooterText: pdfSettings?.pdfFooterText,
         pdfShowLogo: pdfSettings?.pdfShowLogo,
         pdfShowPageNumbers: pdfSettings?.pdfShowPageNumbers,

@@ -33,6 +33,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "~/lib/utils";
+import { calculateLineItemAmount } from "~/lib/invoice-line-item";
 
 interface InvoiceItem {
   id: string;
@@ -493,7 +494,7 @@ export function InvoiceCalendarView({
                             Total
                           </span>
                           <span className="text-primary text-lg font-bold">
-                            ${(item.hours * item.rate).toFixed(2)}
+                            ${calculateLineItemAmount(item.hours, item.rate).toFixed(2)}
                           </span>
                         </div>
                       </div>

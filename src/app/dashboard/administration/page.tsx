@@ -28,7 +28,7 @@ export default async function AdministrationPage() {
     <DashboardPage>
       <DashboardPageHeader
         title="Administration"
-        description="Manage account access and platform administration"
+        description="Platform statistics, user management, and audit logging"
       />
 
       <HydrateClient>

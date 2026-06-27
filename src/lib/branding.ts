@@ -1,11 +1,12 @@
 import { env } from "~/env";
 import { type ColorMode } from "~/lib/appearance";
 
-export type { ColorMode, PdfTemplate } from "~/lib/appearance";
+export type { ColorMode, PdfFontFamily, PdfTemplate } from "~/lib/appearance";
 export {
   colorModeSchema,
   defaultColorMode,
   defaultPdfSettings,
+  pdfFontFamilySchema,
   pdfTemplateSchema,
 } from "~/lib/appearance";
 

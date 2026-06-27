@@ -29,6 +29,9 @@ export function isNavLinkActive(pathname: string, href: string): boolean {
       pathname.startsWith("/dashboard/businesses")
     );
   }
+  if (href === "/dashboard/time-clock") {
+    return pathname === href || pathname.startsWith("/dashboard/time-clock/");
+  }
   return pathname === href;
 }
 

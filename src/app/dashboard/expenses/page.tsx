@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "~/trpc/react";
 import { DashboardPageHeader } from "~/components/layout/page-header";
 import { DashboardPage, dashboardStatGridClass } from "~/components/layout/dashboard-page";
@@ -28,8 +28,17 @@ import {
 } from "~/components/ui/select";
 import { DatePicker } from "~/components/ui/date-picker";
 import { NumberInput } from "~/components/ui/number-input";
+import { FileUpload } from "~/components/forms/file-upload";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Receipt } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Receipt,
+  FileText,
+  Paperclip,
+  ExternalLink,
+} from "lucide-react";
 import { formatCurrency, SUPPORTED_CURRENCIES } from "~/lib/currency";
 import { EXPENSE_CATEGORIES } from "~/lib/expense-categories";
 
@@ -44,6 +53,7 @@ interface ExpenseFormData {
   taxDeductible: boolean;
   notes: string;
   clientId: string;
+  businessId: string;
 }
 
 const defaultForm: ExpenseFormData = {
@@ -57,24 +67,49 @@ const defaultForm: ExpenseFormData = {
   taxDeductible: false,
   notes: "",
   clientId: "",
+  businessId: "",
 };
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function ExpensesPage() {
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<ExpenseFormData>(defaultForm);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [businessFilter, setBusinessFilter] = useState("all");
 
   const utils = api.useUtils();
-  const { data: expenses = [], isLoading } = api.expenses.getAll.useQuery();
+  const { data: businesses = [] } = api.businesses.getAll.useQuery();
+  const { data: expenses = [], isLoading } = api.expenses.getAll.useQuery(
+    businessFilter === "all" ? undefined : { businessId: businessFilter },
+  );
   const { data: clients = [] } = api.clients.getAll.useQuery();
+  const { data: receipts = [] } = api.expenses.listReceipts.useQuery(
+    { expenseId: editId! },
+    { enabled: !!editId },
+  );
+
+  const defaultBusinessId = useMemo(
+    () => businesses.find((b) => b.isDefault)?.id ?? businesses[0]?.id ?? "",
+    [businesses],
+  );
+
+  useEffect(() => {
+    if (!open || editId || !defaultBusinessId || form.businessId) return;
+    setForm((prev) => ({ ...prev, businessId: defaultBusinessId }));
+  }, [open, editId, defaultBusinessId, form.businessId]);
 
   const create = api.expenses.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (expense) => {
+      if (!expense) return;
       toast.success("Expense added");
       void utils.expenses.getAll.invalidate();
-      setOpen(false);
-      setForm(defaultForm);
+      setEditId(expense.id);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -96,10 +131,30 @@ export default function ExpensesPage() {
     },
     onError: (e) => toast.error(e.message),
   });
+  const uploadReceipt = api.expenses.uploadReceipt.useMutation({
+    onSuccess: () => {
+      toast.success("Receipt uploaded");
+      if (editId) {
+        void utils.expenses.listReceipts.invalidate({ expenseId: editId });
+        void utils.expenses.getAll.invalidate();
+      }
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const deleteReceipt = api.expenses.deleteReceipt.useMutation({
+    onSuccess: () => {
+      toast.success("Receipt removed");
+      if (editId) {
+        void utils.expenses.listReceipts.invalidate({ expenseId: editId });
+        void utils.expenses.getAll.invalidate();
+      }
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const handleOpen = () => {
     setEditId(null);
-    setForm(defaultForm);
+    setForm({ ...defaultForm, businessId: defaultBusinessId });
     setOpen(true);
   };
   const handleEdit = (expense: (typeof expenses)[0]) => {
@@ -115,6 +170,7 @@ export default function ExpensesPage() {
       taxDeductible: expense.taxDeductible ?? false,
       notes: expense.notes ?? "",
       clientId: expense.clientId ?? "",
+      businessId: expense.businessId ?? defaultBusinessId,
     });
     setOpen(true);
   };
@@ -130,12 +186,43 @@ export default function ExpensesPage() {
     const payload = {
       ...form,
       clientId: form.clientId || undefined,
+      businessId: form.businessId || undefined,
       category: form.category || undefined,
       notes: form.notes || undefined,
       taxDeductible: form.taxDeductible,
     };
     if (editId) update.mutate({ id: editId, ...payload });
     else create.mutate(payload);
+  };
+
+  const handleReceiptFiles = async (files: File[]) => {
+    if (!editId) {
+      toast.error("Save the expense before uploading receipts");
+      return;
+    }
+    for (const file of files) {
+      const data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          const base64 = result.split(",")[1];
+          if (!base64) {
+            reject(new Error("Failed to read file"));
+            return;
+          }
+          resolve(base64);
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+
+      await uploadReceipt.mutateAsync({
+        expenseId: editId,
+        filename: file.name,
+        mimeType: file.type || "application/octet-stream",
+        data,
+      });
+    }
   };
 
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
@@ -160,6 +247,23 @@ export default function ExpensesPage() {
           <Plus className="mr-2 h-5 w-5" /> Add Expense
         </Button>
       </DashboardPageHeader>
+
+      <div className="mb-4 flex items-center gap-3">
+        <Label className="text-sm">Business</Label>
+        <Select value={businessFilter} onValueChange={setBusinessFilter}>
+          <SelectTrigger className="w-52">
+            <SelectValue placeholder="All businesses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All businesses</SelectItem>
+            {businesses.map((b) => (
+              <SelectItem key={b.id} value={b.id}>
+                {b.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className={dashboardStatGridClass}>
         <Card>
@@ -202,7 +306,6 @@ export default function ExpensesPage() {
         </Card>
       </div>
 
-      {/* Expenses list */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -259,6 +362,12 @@ export default function ExpensesPage() {
                           {expense.category}
                         </Badge>
                       )}
+                      {(expense.receipts?.length ?? 0) > 0 && (
+                        <Badge variant="outline" className="text-xs">
+                          <Paperclip className="mr-1 h-3 w-3" />
+                          {expense.receipts?.length}
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-muted-foreground mt-0.5 text-xs">
                       {new Intl.DateTimeFormat("en-US", {
@@ -266,6 +375,7 @@ export default function ExpensesPage() {
                         day: "numeric",
                         year: "numeric",
                       }).format(new Date(expense.date))}
+                      {expense.business ? ` · ${expense.business.name}` : ""}
                       {expense.client ? ` · ${expense.client.name}` : ""}
                     </p>
                     {expense.notes && (
@@ -302,8 +412,16 @@ export default function ExpensesPage() {
         </CardContent>
       </Card>
 
-      {/* Add/Edit dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) {
+            setEditId(null);
+            setForm(defaultForm);
+          }
+        }}
+      >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editId ? "Edit Expense" : "Add Expense"}</DialogTitle>
@@ -382,6 +500,31 @@ export default function ExpensesPage() {
               </div>
             </div>
             <div className="space-y-2">
+              <Label>Business</Label>
+              <Select
+                value={form.businessId || "none"}
+                onValueChange={(v) =>
+                  setForm((p) => ({
+                    ...p,
+                    businessId: v === "none" ? "" : v,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select business" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Default business</SelectItem>
+                  {businesses.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name}
+                      {b.isDefault ? " (default)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label>Client (optional)</Label>
               <Select
                 value={form.clientId || "none"}
@@ -441,6 +584,79 @@ export default function ExpensesPage() {
                 placeholder="Additional details…"
               />
             </div>
+
+            {editId ? (
+              <div className="space-y-3 border-t pt-4">
+                <Label>Receipts</Label>
+                {receipts.length > 0 && (
+                  <div className="space-y-2">
+                    {receipts.map((receipt) => {
+                      const isImage = receipt.mimeType.startsWith("image/");
+                      const url = `/api/receipts/${receipt.id}`;
+                      return (
+                        <div
+                          key={receipt.id}
+                          className="flex items-center gap-3 rounded-md border p-2"
+                        >
+                          {isImage ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={url}
+                              alt={receipt.originalFilename}
+                              className="h-12 w-12 rounded object-cover"
+                            />
+                          ) : (
+                            <div className="bg-muted flex h-12 w-12 items-center justify-center rounded">
+                              <FileText className="text-muted-foreground h-6 w-6" />
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">
+                              {receipt.originalFilename}
+                            </p>
+                            <p className="text-muted-foreground text-xs">
+                              {formatFileSize(receipt.sizeBytes)}
+                            </p>
+                          </div>
+                          <Button variant="ghost" size="sm" asChild>
+                            <a href={url} target="_blank" rel="noreferrer">
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive"
+                            onClick={() =>
+                              deleteReceipt.mutate({ id: receipt.id })
+                            }
+                            disabled={deleteReceipt.isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <FileUpload
+                  onFilesSelected={(files) => void handleReceiptFiles(files)}
+                  accept={{
+                    "image/*": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic"],
+                    "application/pdf": [".pdf"],
+                  }}
+                  maxFiles={5}
+                  maxSize={10 * 1024 * 1024}
+                  disabled={uploadReceipt.isPending}
+                  placeholder="Drop receipts here"
+                  description="Images or PDF, up to 10MB each"
+                />
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-xs">
+                Save the expense first, then you can attach receipts.
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
@@ -460,7 +676,6 @@ export default function ExpensesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete dialog */}
       <Dialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <DialogContent>
           <DialogHeader>

@@ -9,6 +9,7 @@ import {
   platformSettings,
 } from "~/server/db/schema";
 import { TRPCError } from "@trpc/server";
+import { calculateLineItemAmount } from "~/lib/invoice-line-item";
 import { generateInvoicePDFBlob } from "~/lib/pdf-export";
 import { defaultDueDate, generateInvoiceNumber } from "~/lib/draft-invoice";
 import { Resend } from "resend";
@@ -22,12 +23,29 @@ type InvoiceRouterContext = {
   session: { user: { id: string } };
 };
 
-const invoiceItemSchema = z.object({
-  date: z.date(),
-  description: z.string().min(1, "Description is required"),
-  hours: z.number().min(0, "Hours must be positive"),
-  rate: z.number().min(0, "Rate must be positive"),
-});
+const invoiceItemSchema = z
+  .object({
+    date: z.date(),
+    description: z.string().min(1, "Description is required"),
+    hours: z.number().min(0, "Hours must be positive"),
+    rate: z.number().min(0, "Rate must be positive"),
+  })
+  .superRefine((item, ctx) => {
+    if (item.hours === 0 && item.rate <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Fixed line items need an amount greater than zero",
+        path: ["rate"],
+      });
+    }
+    if (item.hours > 0 && item.rate <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Hourly line items need a rate greater than zero",
+        path: ["rate"],
+      });
+    }
+  });
 
 const createInvoiceSchema = z.object({
   invoiceNumber: z.string().min(1, "Invoice number is required"),
@@ -162,7 +180,10 @@ const calculateInvoiceTotal = (
   items: Array<z.infer<typeof invoiceItemSchema>>,
   taxRate: number,
 ) => {
-  const subtotal = items.reduce((sum, item) => sum + item.hours * item.rate, 0);
+  const subtotal = items.reduce(
+    (sum, item) => sum + calculateLineItemAmount(item.hours, item.rate),
+    0,
+  );
   const taxAmount = (subtotal * taxRate) / 100;
   return subtotal + taxAmount;
 };
@@ -445,7 +466,7 @@ export const invoicesRouter = createTRPCRouter({
               items.map((item, idx) => ({
                 ...item,
                 invoiceId: invoice.id,
-                amount: item.hours * item.rate,
+                amount: calculateLineItemAmount(item.hours, item.rate),
                 position: idx,
               })),
             );
@@ -563,7 +584,7 @@ export const invoicesRouter = createTRPCRouter({
                 items.map((item, idx) => ({
                   ...item,
                   invoiceId: id,
-                  amount: item.hours * item.rate,
+                  amount: calculateLineItemAmount(item.hours, item.rate),
                   position: idx,
                 })),
               );
@@ -863,7 +884,7 @@ export const invoicesRouter = createTRPCRouter({
                 dbItems.map((item, idx) => ({
                   ...item,
                   invoiceId: invoice.id,
-                  amount: item.hours * item.rate,
+                  amount: calculateLineItemAmount(item.hours, item.rate),
                   position: idx,
                 })),
               );
@@ -935,7 +956,7 @@ export const invoicesRouter = createTRPCRouter({
               description: item.description,
               hours: item.hours,
               rate: item.rate,
-              amount: item.hours * item.rate,
+              amount: calculateLineItemAmount(item.hours, item.rate),
             })),
           },
           {
@@ -944,6 +965,16 @@ export const invoicesRouter = createTRPCRouter({
               | "minimal"
               | undefined,
             pdfAccentColor: settings?.pdfAccentColor,
+            pdfFontFamily: settings?.pdfFontFamily as
+              | "sans"
+              | "serif"
+              | "mono"
+              | undefined,
+            pdfNumericFontFamily: settings?.pdfNumericFontFamily as
+              | "sans"
+              | "serif"
+              | "mono"
+              | undefined,
             pdfFooterText: settings?.pdfFooterText,
             pdfShowLogo: settings?.pdfShowLogo,
             pdfShowPageNumbers: settings?.pdfShowPageNumbers,

@@ -90,12 +90,16 @@ export function ClientForm({ clientId, mode }: ClientFormProps) {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   // Fetch client data if editing
   const { data: client, isLoading: isLoadingClient } =
     api.clients.getById.useQuery(
       { id: clientId! },
-      { enabled: mode === "edit" && !!clientId },
+      {
+        enabled: mode === "edit" && !!clientId,
+        refetchOnWindowFocus: false,
+      },
     );
 
   const createClient = api.clients.create.useMutation({
@@ -118,9 +122,16 @@ export function ClientForm({ clientId, mode }: ClientFormProps) {
     },
   });
 
-  // Load client data when editing
   useEffect(() => {
-    if (client && mode === "edit") {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset form when navigating to a different client.
+    setInitialized(false);
+    setIsDirty(false);
+    setFormData(initialFormData);
+  }, [clientId]);
+
+  // Load client data once when editing (avoid overwriting unsaved changes on refetch)
+  useEffect(() => {
+    if (client && mode === "edit" && !initialized) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Sync loaded client data into the edit form.
       setFormData({
         name: client.name,
@@ -135,8 +146,9 @@ export function ClientForm({ clientId, mode }: ClientFormProps) {
         defaultHourlyRate: client.defaultHourlyRate ?? null,
         currency: client.currency ?? "USD",
       });
+      setInitialized(true);
     }
-  }, [client, mode]);
+  }, [client, mode, initialized]);
 
   const handleInputChange = (field: string, value: string | number | null) => {
     setFormData((prev) => ({ ...prev, [field]: value }));

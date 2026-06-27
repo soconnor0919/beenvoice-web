@@ -30,6 +30,8 @@ const SPECIAL_SEGMENTS: Record<string, string> = {
   import: "Import",
   export: "Export",
   dashboard: "Dashboard",
+  entries: "All entries",
+  "time-clock": "Time clock",
 };
 
 import { cn } from "~/lib/utils";

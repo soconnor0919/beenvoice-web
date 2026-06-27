@@ -6,9 +6,19 @@ import {
   Image,
   StyleSheet,
   pdf,
+  type Styles,
 } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
+import {
+  isFixedLineItem,
+} from "~/lib/invoice-line-item";
 import React from "react";
+import {
+  type PdfFontFamily,
+  type ResolvedPdfFonts,
+  pdfFontCacheKey,
+  resolvePdfFonts,
+} from "~/lib/pdf-fonts";
 
 // Fallback download function for better browser compatibility
 function downloadBlob(blob: Blob, filename: string): void {
@@ -101,6 +111,8 @@ export interface InvoiceData {
 export interface PDFGenerationSettings {
   pdfTemplate?: "classic" | "minimal";
   pdfAccentColor?: string;
+  pdfFontFamily?: PdfFontFamily;
+  pdfNumericFontFamily?: PdfFontFamily;
   pdfFooterText?: string;
   pdfShowLogo?: boolean;
   pdfShowPageNumbers?: boolean;
@@ -109,6 +121,8 @@ export interface PDFGenerationSettings {
 const defaultPDFSettings: Required<PDFGenerationSettings> = {
   pdfTemplate: "classic",
   pdfAccentColor: "#111827",
+  pdfFontFamily: "sans",
+  pdfNumericFontFamily: "mono",
   pdfFooterText: "Professional Invoicing",
   pdfShowLogo: true,
   pdfShowPageNumbers: true,
@@ -118,7 +132,95 @@ function resolvePDFSettings(settings?: PDFGenerationSettings) {
   return { ...defaultPDFSettings, ...settings };
 }
 
-const styles = StyleSheet.create({
+function mapLegacyPdfFont(
+  fontFamily: string,
+  fonts: ResolvedPdfFonts,
+): string {
+  switch (fontFamily) {
+    case "Helvetica-Bold":
+      return fonts.bold;
+    case "Helvetica":
+      return fonts.regular;
+    case "Courier-Bold":
+      return fonts.monoBold;
+    case "Courier":
+      return fonts.mono;
+    default:
+      return fontFamily;
+  }
+}
+
+function remapStyleFontFamilies<T extends Styles>(
+  sheet: T,
+  fonts: ResolvedPdfFonts,
+): T {
+  const remapped = {} as T;
+
+  for (const [key, style] of Object.entries(sheet)) {
+    const fontFamily = (style as { fontFamily?: string }).fontFamily;
+    remapped[key as keyof T] = {
+      ...style,
+      ...(fontFamily
+        ? { fontFamily: mapLegacyPdfFont(fontFamily, fonts) }
+        : {}),
+    } as T[keyof T];
+  }
+
+  return remapped;
+}
+
+type PdfStyleBundle = {
+  styles: typeof baseStyles;
+  minimalStyles: typeof baseMinimalStyles;
+  fonts: ResolvedPdfFonts;
+  getStatusStyle: (
+    status: string,
+  ) => Array<Record<string, string | number>>;
+};
+
+const pdfStyleCache = new Map<string, PdfStyleBundle>();
+
+function getPdfStyleBundle(
+  bodyFamily: PdfFontFamily,
+  numericFamily: PdfFontFamily,
+): PdfStyleBundle {
+  const cacheKey = pdfFontCacheKey(bodyFamily, numericFamily);
+  const cached = pdfStyleCache.get(cacheKey);
+  if (cached) return cached;
+
+  const fonts = resolvePdfFonts(bodyFamily, numericFamily);
+  const styles = remapStyleFontFamilies(baseStyles, fonts);
+  const bundle: PdfStyleBundle = {
+    styles,
+    minimalStyles: baseMinimalStyles,
+    fonts,
+    getStatusStyle: (status: string) => {
+      switch (status.toLowerCase()) {
+        case "paid":
+          return [styles.statusBadge, styles.statusPaid];
+        case "sent":
+          return [styles.statusBadge, styles.statusPaid];
+        case "overdue":
+          return [
+            styles.statusBadge,
+            { backgroundColor: "#fef2f2", color: "#dc2626" },
+          ];
+        case "draft":
+          return [
+            styles.statusBadge,
+            { backgroundColor: "#f9fafb", color: "#9ca3af" },
+          ];
+        default:
+          return [styles.statusBadge, styles.statusUnpaid];
+      }
+    },
+  };
+
+  pdfStyleCache.set(cacheKey, bundle);
+  return bundle;
+}
+
+const baseStyles = StyleSheet.create({
   page: {
     flexDirection: "column",
     backgroundColor: "#ffffff",
@@ -537,7 +639,7 @@ const styles = StyleSheet.create({
   },
 });
 
-const minimalStyles = StyleSheet.create({
+const baseMinimalStyles = StyleSheet.create({
   page: {
     fontSize: 9,
     paddingTop: 28,
@@ -729,27 +831,6 @@ const getStatusLabel = (status: string) => {
   }
 };
 
-const getStatusStyle = (status: string) => {
-  switch (status.toLowerCase()) {
-    case "paid":
-      return [styles.statusBadge, styles.statusPaid];
-    case "sent":
-      return [styles.statusBadge, styles.statusPaid];
-    case "overdue":
-      return [
-        styles.statusBadge,
-        { backgroundColor: "#fef2f2", color: "#dc2626" },
-      ];
-    case "draft":
-      return [
-        styles.statusBadge,
-        { backgroundColor: "#f9fafb", color: "#9ca3af" },
-      ];
-    default:
-      return [styles.statusBadge, styles.statusUnpaid];
-  }
-};
-
 function getColumnWidths(showRate: boolean) {
   return showRate
     ? {
@@ -766,7 +847,9 @@ function getColumnWidths(showRate: boolean) {
 const DenseHeader: React.FC<{
   invoice: InvoiceData;
   settings: Required<PDFGenerationSettings>;
-}> = ({ invoice, settings }) => {
+  pdfStyles: PdfStyleBundle;
+}> = ({ invoice, settings, pdfStyles }) => {
+  const { styles, minimalStyles, getStatusStyle } = pdfStyles;
   const isMinimal = settings.pdfTemplate === "minimal";
 
   return (
@@ -1029,7 +1112,9 @@ const DenseHeader: React.FC<{
 const TableHeader: React.FC<{
   settings: Required<PDFGenerationSettings>;
   showRate: boolean;
-}> = ({ settings, showRate }) => {
+  pdfStyles: PdfStyleBundle;
+}> = ({ settings, showRate, pdfStyles }) => {
+  const { styles, minimalStyles } = pdfStyles;
   const cols = getColumnWidths(showRate);
   const isMinimal = settings.pdfTemplate === "minimal";
   return (
@@ -1094,7 +1179,9 @@ const TableHeader: React.FC<{
 const NotesSection: React.FC<{
   invoice: InvoiceData;
   settings: Required<PDFGenerationSettings>;
-}> = ({ invoice, settings }) => {
+  pdfStyles: PdfStyleBundle;
+}> = ({ invoice, settings, pdfStyles }) => {
+  const { styles, minimalStyles } = pdfStyles;
   if (!invoice.notes) return null;
   const isMinimal = settings.pdfTemplate === "minimal";
 
@@ -1129,9 +1216,11 @@ const NotesSection: React.FC<{
   );
 };
 
-const Footer: React.FC<{ settings: Required<PDFGenerationSettings> }> = ({
-  settings,
-}) => {
+const Footer: React.FC<{
+  settings: Required<PDFGenerationSettings>;
+  pdfStyles: PdfStyleBundle;
+}> = ({ settings, pdfStyles }) => {
+  const { styles, minimalStyles, fonts } = pdfStyles;
   const isMinimal = settings.pdfTemplate === "minimal";
 
   return (
@@ -1151,7 +1240,7 @@ const Footer: React.FC<{ settings: Required<PDFGenerationSettings> }> = ({
         <Text
           style={{
             fontSize: isMinimal ? 8 : 9,
-            fontFamily: "Helvetica",
+            fontFamily: fonts.regular,
             color: "#6b7280",
             marginLeft: settings.pdfShowLogo ? 8 : 0,
           }}
@@ -1176,7 +1265,9 @@ const TotalsSection: React.FC<{
   invoice: InvoiceData;
   items: Array<NonNullable<InvoiceData["items"]>[0]>;
   settings: Required<PDFGenerationSettings>;
-}> = ({ invoice, items, settings }) => {
+  pdfStyles: PdfStyleBundle;
+}> = ({ invoice, items, settings, pdfStyles }) => {
+  const { styles, minimalStyles, fonts } = pdfStyles;
   const currency = invoice.currency ?? "USD";
   const subtotal = items.reduce((sum, item) => sum + (item?.amount ?? 0), 0);
   const taxAmount = (subtotal * invoice.taxRate) / 100;
@@ -1206,7 +1297,7 @@ const TotalsSection: React.FC<{
         <Text
           style={{
             fontSize: isMinimal ? 8 : 11,
-            fontFamily: "Helvetica-Bold",
+            fontFamily: fonts.bold,
             color: "#0f0f0f",
             textAlign: isMinimal ? "left" : "center",
             marginBottom: isMinimal ? 5 : 8,
@@ -1301,6 +1392,26 @@ export const InvoicePDF: React.FC<{
   settings?: PDFGenerationSettings;
 }> = ({ invoice, settings: inputSettings }) => {
   const settings = resolvePDFSettings(inputSettings);
+  const pdfStyles = getPdfStyleBundle(
+    settings.pdfFontFamily,
+    settings.pdfNumericFontFamily,
+  );
+
+  return (
+    <InvoicePDFDocument
+      invoice={invoice}
+      settings={settings}
+      pdfStyles={pdfStyles}
+    />
+  );
+};
+
+const InvoicePDFDocument: React.FC<{
+  invoice: InvoiceData;
+  settings: Required<PDFGenerationSettings>;
+  pdfStyles: PdfStyleBundle;
+}> = ({ invoice, settings, pdfStyles }) => {
+  const { styles, minimalStyles } = pdfStyles;
   const items = invoice.items?.filter(Boolean) ?? [];
   const currency = invoice.currency ?? "USD";
   const showRate = new Set(items.map((item) => item?.rate)).size > 1;
@@ -1313,7 +1424,11 @@ export const InvoicePDF: React.FC<{
         size="LETTER"
         style={[styles.page, isMinimal ? minimalStyles.page : {}]}
       >
-        <DenseHeader invoice={invoice} settings={settings} />
+        <DenseHeader
+          invoice={invoice}
+          settings={settings}
+          pdfStyles={pdfStyles}
+        />
 
         {items.length > 0 && (
           <View
@@ -1322,7 +1437,11 @@ export const InvoicePDF: React.FC<{
               isMinimal ? minimalStyles.tableContainer : {},
             ]}
           >
-            <TableHeader settings={settings} showRate={showRate} />
+            <TableHeader
+              settings={settings}
+              showRate={showRate}
+              pdfStyles={pdfStyles}
+            />
             {items.map(
               (item, index) =>
                 item && (
@@ -1366,7 +1485,7 @@ export const InvoicePDF: React.FC<{
                         { width: cols.hours },
                       ]}
                     >
-                      {item.hours}
+                      {isFixedLineItem(item.hours) ? "—" : item.hours}
                     </Text>
                     {showRate && (
                       <Text
@@ -1404,12 +1523,21 @@ export const InvoicePDF: React.FC<{
           wrap={false}
         >
           {invoice.notes && (
-            <NotesSection invoice={invoice} settings={settings} />
+            <NotesSection
+              invoice={invoice}
+              settings={settings}
+              pdfStyles={pdfStyles}
+            />
           )}
-          <TotalsSection invoice={invoice} items={items} settings={settings} />
+          <TotalsSection
+            invoice={invoice}
+            items={items}
+            settings={settings}
+            pdfStyles={pdfStyles}
+          />
         </View>
 
-        <Footer settings={settings} />
+        <Footer settings={settings} pdfStyles={pdfStyles} />
       </Page>
     </Document>
   );

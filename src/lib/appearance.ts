@@ -1,10 +1,16 @@
 import { z } from "zod";
+import {
+  pdfFontFamilySchema,
+  type PdfFontFamily,
+} from "~/lib/pdf-fonts";
 
 export const colorModeValues = ["light", "dark", "system"] as const;
 export const pdfTemplateValues = ["classic", "minimal"] as const;
 
 export const colorModeSchema = z.enum(colorModeValues);
 export const pdfTemplateSchema = z.enum(pdfTemplateValues);
+
+export { pdfFontFamilySchema, type PdfFontFamily };
 
 export type ColorMode = z.infer<typeof colorModeSchema>;
 export type PdfTemplate = z.infer<typeof pdfTemplateSchema>;
@@ -14,6 +20,8 @@ export const defaultColorMode: ColorMode = "system";
 export const defaultPdfSettings = {
   pdfTemplate: "classic" as PdfTemplate,
   pdfAccentColor: "#111827",
+  pdfFontFamily: "sans" as PdfFontFamily,
+  pdfNumericFontFamily: "mono" as PdfFontFamily,
   pdfFooterText: "Professional Invoicing",
   pdfShowLogo: true,
   pdfShowPageNumbers: true,

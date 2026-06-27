@@ -35,6 +35,8 @@ import {
   resolveEffectiveHourlyRate,
   startedAtFromMinutesAgo,
 } from "~/lib/time-clock";
+import { invoiceLabel } from "~/lib/time-entry-display";
+import { TimeEntryList } from "~/components/time-clock/time-entry-list";
 
 const FEATURED_CLIENT_COUNT = 4;
 
@@ -45,26 +47,6 @@ export type TimeClockPanelProps = {
   defaultInvoiceId?: string;
   compact?: boolean;
 };
-
-function invoiceLabel(inv: {
-  invoicePrefix: string | null;
-  invoiceNumber: string;
-}) {
-  return `${inv.invoicePrefix ?? "#"}${inv.invoiceNumber}`;
-}
-
-function entryHref(entry: {
-  invoiceId: string | null;
-  clientId: string | null;
-  invoice?: { id: string } | null;
-  client?: { id: string } | null;
-}): string | null {
-  const invoiceId = entry.invoiceId ?? entry.invoice?.id;
-  if (invoiceId) return `/dashboard/invoices/${invoiceId}`;
-  const clientId = entry.clientId ?? entry.client?.id;
-  if (clientId) return `/dashboard/clients/${clientId}`;
-  return null;
-}
 
 function ClientChip({
   label,
@@ -145,6 +127,10 @@ export function TimeClockPanel({
     const last = getLastTimeClockClientId();
     if (last) ids.push(last);
 
+    if (running?.clientId && !ids.includes(running.clientId)) {
+      ids.unshift(running.clientId);
+    }
+
     for (const entry of todayEntries ?? []) {
       if (entry.clientId && !ids.includes(entry.clientId)) {
         ids.push(entry.clientId);
@@ -157,7 +143,7 @@ export function TimeClockPanel({
     }
 
     return ids;
-  }, [clients, todayEntries]);
+  }, [clients, todayEntries, running]);
 
   const visibleClients = useMemo(() => {
     if (!clients?.length) return [];
@@ -187,6 +173,14 @@ export function TimeClockPanel({
     onSuccess: () => {
       toast.success("Timer started");
       void utils.timeEntries.getRunning.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const updateRunning = api.timeEntries.updateRunning.useMutation({
+    onSuccess: () => {
+      void utils.timeEntries.getRunning.invalidate();
+      void utils.invoices.getBillable.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -227,11 +221,25 @@ export function TimeClockPanel({
   });
 
   function handleClientChange(value: string) {
+    if (running) {
+      updateRunning.mutate({ clientId: value, invoiceId: "" });
+      return;
+    }
+
     setClientId(value);
     setInvoiceId("");
     setLastTimeClockClientId(value);
     const client = clients?.find((c) => c.id === value);
     setRate(client?.defaultHourlyRate ?? 0);
+  }
+
+  function handleInvoiceChange(value: string) {
+    const next = value === "__none__" ? "" : value;
+    if (running) {
+      updateRunning.mutate({ invoiceId: next });
+      return;
+    }
+    setInvoiceId(next);
   }
 
   function resolveStartedAt(): Date | undefined {
@@ -293,6 +301,8 @@ export function TimeClockPanel({
 
   const displayRate = running ? (running.rate ?? 0) : rate;
   const runningTitle = formatRunningTimerLabel(running?.description);
+  const activeClientId = running ? (running.clientId ?? "") : clientId;
+  const activeInvoiceId = running ? (running.invoiceId ?? "") : invoiceId;
 
   return (
     <div className={compact ? "space-y-4" : "space-y-6"}>
@@ -347,7 +357,7 @@ export function TimeClockPanel({
                     <ClientChip
                       key={client.id}
                       label={client.name}
-                      active={clientId === client.id}
+                      active={activeClientId === client.id}
                       onClick={() => handleClientChange(client.id)}
                     />
                   ))}
@@ -383,7 +393,7 @@ export function TimeClockPanel({
                 <Label>Invoice</Label>
                 <Select
                   value={invoiceId || "__none__"}
-                  onValueChange={(v) => setInvoiceId(v === "__none__" ? "" : v)}
+                  onValueChange={handleInvoiceChange}
                   disabled={!clientId}
                 >
                   <SelectTrigger>
@@ -485,19 +495,91 @@ export function TimeClockPanel({
               </Collapsible>
             </>
           ) : (
-            <div className="space-y-2">
-              <Label htmlFor="clock-stop-note">Note on stop (optional)</Label>
-              <Input
-                id="clock-stop-note"
-                value={stopNote}
-                onChange={(e) => setStopNote(e.target.value)}
-                placeholder={
-                  running?.description?.trim()
-                    ? running.description
-                    : "Update description when you stop"
-                }
-              />
-            </div>
+            <>
+              <div className="space-y-2">
+                <Label>Client</Label>
+                <div className="flex flex-wrap gap-2">
+                  {visibleClients.map((client) => (
+                    <ClientChip
+                      key={client.id}
+                      label={client.name}
+                      active={activeClientId === client.id}
+                      onClick={() => handleClientChange(client.id)}
+                    />
+                  ))}
+                  {!showAllClients && hiddenClientCount > 0 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full"
+                      onClick={() => setShowAllClients(true)}
+                    >
+                      +{hiddenClientCount} more
+                    </Button>
+                  ) : null}
+                </div>
+                {(showAllClients || (clients?.length ?? 0) > FEATURED_CLIENT_COUNT) && (
+                  <Select
+                    value={activeClientId || undefined}
+                    onValueChange={handleClientChange}
+                    disabled={updateRunning.isPending}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Select client" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients?.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Invoice</Label>
+                <Select
+                  value={activeInvoiceId || "__none__"}
+                  onValueChange={handleInvoiceChange}
+                  disabled={!activeClientId || updateRunning.isPending}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        activeClientId
+                          ? "Draft invoice (optional)"
+                          : "Choose a client first"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No invoice — save entry only</SelectItem>
+                    {billableInvoices?.map((inv) => (
+                      <SelectItem key={inv.id} value={inv.id}>
+                        {invoiceLabel(inv)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="clock-stop-note">Note on stop (optional)</Label>
+                <Input
+                  id="clock-stop-note"
+                  value={stopNote}
+                  onChange={(e) => setStopNote(e.target.value)}
+                  placeholder={
+                    running?.description?.trim()
+                      ? running.description
+                      : "Update description when you stop"
+                  }
+                />
+              </div>
+            </>
           )}
 
           {running ? (
@@ -529,66 +611,28 @@ export function TimeClockPanel({
         </CardContent>
       </Card>
 
-      {!compact && todayEntries && todayEntries.length > 0 ? (
+      {!compact ? (
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-base">Today&apos;s entries</CardTitle>
+            <Button variant="ghost" size="sm" className="h-8" asChild>
+              <Link href="/dashboard/time-clock/entries">View all entries</Link>
+            </Button>
           </CardHeader>
           <CardContent>
-            {todayEntries
-              .filter((e) => e.endedAt)
-              .map((entry, index, entries) => {
-                const href = entryHref(entry);
-                const isLast = index === entries.length - 1;
-                const rowClassName = cn(
-                  "flex items-start justify-between gap-4 py-3",
-                  !isLast && "border-border border-b",
-                );
-                const content = (
-                  <>
-                    <div className="min-w-0">
-                      <p className="font-medium">
-                        {formatRunningTimerLabel(entry.description)}
-                      </p>
-                      <p className="text-muted-foreground text-sm">
-                        {entry.client?.name ?? "No client"}
-                        {entry.invoice
-                          ? ` · ${entry.invoice.invoicePrefix ?? "#"}${entry.invoice.invoiceNumber}`
-                          : entry.hours
-                            ? " · not on invoice"
-                            : ""}
-                      </p>
-                    </div>
-                    <div className="text-right text-sm">
-                      <p className="font-mono font-semibold">{entry.hours ?? "—"}h</p>
-                      {entry.rate ? (
-                        <p className="text-muted-foreground">${entry.rate}/hr</p>
-                      ) : null}
-                    </div>
-                  </>
-                );
-
-                if (href) {
-                  return (
-                    <Link
-                      key={entry.id}
-                      href={href}
-                      className={cn(
-                        rowClassName,
-                        "-mx-2 flex w-full cursor-pointer px-2 transition-colors hover:rounded-md hover:bg-muted/60",
-                      )}
-                    >
-                      {content}
-                    </Link>
-                  );
-                }
-
-                return (
-                  <div key={entry.id} className={rowClassName}>
-                    {content}
-                  </div>
-                );
-              })}
+            {todayEntries?.some((e) => e.endedAt) ? (
+              <TimeEntryList entries={todayEntries} />
+            ) : (
+              <p className="text-muted-foreground py-4 text-center text-sm">
+                No entries today.{" "}
+                <Link
+                  href="/dashboard/time-clock/entries"
+                  className="text-primary hover:underline"
+                >
+                  View history
+                </Link>
+              </p>
+            )}
           </CardContent>
         </Card>
       ) : null}

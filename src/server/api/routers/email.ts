@@ -94,6 +94,16 @@ export const emailRouter = createTRPCRouter({
             | "minimal"
             | undefined,
           pdfAccentColor: settings?.pdfAccentColor,
+          pdfFontFamily: settings?.pdfFontFamily as
+            | "sans"
+            | "serif"
+            | "mono"
+            | undefined,
+          pdfNumericFontFamily: settings?.pdfNumericFontFamily as
+            | "sans"
+            | "serif"
+            | "mono"
+            | undefined,
           pdfFooterText: settings?.pdfFooterText,
           pdfShowLogo: settings?.pdfShowLogo,
           pdfShowPageNumbers: settings?.pdfShowPageNumbers,

@@ -88,7 +88,8 @@ import {
 } from "~/components/ui/select";
 import { useAppearance } from "~/components/providers/appearance-provider";
 import { brand, colorModes } from "~/lib/branding";
-import type { PdfTemplate } from "~/lib/appearance";
+import type { PdfFontFamily, PdfTemplate } from "~/lib/appearance";
+import { pdfFontFamilyOptions } from "~/lib/pdf-fonts";
 import { ApiAccessSettings } from "./api-access-settings";
 import { ImportPageHeaderActions } from "./invoice-import/import-page-header-actions";
 
@@ -146,6 +147,7 @@ export function SettingsContent({
 
   const { data: session } = useAuthSession();
   const [name, setName] = useState("");
+  const [nameInitialized, setNameInitialized] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [importData, setImportData] = useState("");
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -177,6 +179,8 @@ export function SettingsContent({
   const savePdfSettings = (patch: {
     pdfTemplate?: PdfTemplate;
     pdfAccentColor?: string;
+    pdfFontFamily?: PdfFontFamily;
+    pdfNumericFontFamily?: PdfFontFamily;
     pdfFooterText?: string;
     pdfShowLogo?: boolean;
     pdfShowPageNumbers?: boolean;
@@ -217,7 +221,7 @@ export function SettingsContent({
   };
 
   // Queries
-  const { data: profile, refetch: refetchProfile } =
+  const { data: profile, refetch: refetchProfile, isFetched: profileFetched } =
     api.settings.getProfile.useQuery();
   const isAdmin = profile?.role === "admin";
   const { data: dataStats } = api.settings.getDataStats.useQuery();
@@ -405,16 +409,13 @@ export function SettingsContent({
     deleteDataMutation.mutate({ confirmText: deleteConfirmText });
   };
 
-  // Set initial name value when profile loads
+  // Set initial name value once when profile loads
   React.useEffect(() => {
-    if (profile?.name && !name) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Sync async profile data into an editable form field.
-      setName(profile.name);
-    }
-    if (session?.user) {
-      setName(session.user.name ?? "");
-    }
-  }, [session, profile?.name, name]);
+    if (nameInitialized || !profileFetched) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Sync async profile data into an editable form field.
+    setName(profile?.name ?? session?.user?.name ?? "");
+    setNameInitialized(true);
+  }, [profile?.name, profileFetched, session?.user?.name, nameInitialized]);
 
   // (Removed direct DOM mutation; provider handles applying preferences globally)
 
@@ -790,6 +791,73 @@ export function SettingsContent({
                         className="mt-0"
                       />
                     </div>
+
+                    <div className="space-y-2">
+                      <Label>Body Text Font</Label>
+                      <Select
+                        value={pdfSettings?.pdfFontFamily ?? "sans"}
+                        onValueChange={(value) =>
+                          savePdfSettings({
+                            pdfFontFamily: value as PdfFontFamily,
+                          })
+                        }
+                        disabled={updatePdfSettingsMutation.isPending}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {pdfFontFamilyOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-muted-foreground text-xs leading-snug">
+                        {
+                          pdfFontFamilyOptions.find(
+                            (option) =>
+                              option.value ===
+                              (pdfSettings?.pdfFontFamily ?? "sans"),
+                          )?.description
+                        }
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Numbers Font</Label>
+                      <Select
+                        value={pdfSettings?.pdfNumericFontFamily ?? "mono"}
+                        onValueChange={(value) =>
+                          savePdfSettings({
+                            pdfNumericFontFamily: value as PdfFontFamily,
+                          })
+                        }
+                        disabled={updatePdfSettingsMutation.isPending}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {pdfFontFamilyOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-muted-foreground text-xs leading-snug">
+                        Used for dates, hours, rates, and totals.{" "}
+                        {
+                          pdfFontFamilyOptions.find(
+                            (option) =>
+                              option.value ===
+                              (pdfSettings?.pdfNumericFontFamily ?? "mono"),
+                          )?.description
+                        }
+                      </p>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -847,6 +915,9 @@ export function SettingsContent({
                   settings={{
                     pdfTemplate: pdfSettings?.pdfTemplate ?? "classic",
                     pdfAccentColor: pdfSettings?.pdfAccentColor ?? "#111827",
+                    pdfFontFamily: pdfSettings?.pdfFontFamily ?? "sans",
+                    pdfNumericFontFamily:
+                      pdfSettings?.pdfNumericFontFamily ?? "mono",
                     pdfFooterText:
                       pdfSettings?.pdfFooterText ?? "Professional Invoicing",
                     pdfShowLogo: pdfSettings?.pdfShowLogo ?? true,

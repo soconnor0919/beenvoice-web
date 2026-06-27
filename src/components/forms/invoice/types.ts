@@ -3,6 +3,8 @@ import { type RouterOutputs } from "~/trpc/react";
 export type ClientType = RouterOutputs["clients"]["getAll"][number];
 export type BusinessType = RouterOutputs["businesses"]["getAll"][number];
 
+import type { LineItemBillingType } from "~/lib/invoice-line-item";
+
 export interface InvoiceItem {
   id: string;
   date: Date;
@@ -10,6 +12,7 @@ export interface InvoiceItem {
   hours: number;
   rate: number;
   amount: number;
+  billingType: LineItemBillingType;
 }
 
 export interface InvoiceFormData {

@@ -51,10 +51,14 @@ function toNumericChartValue(value: unknown) {
 }
 
 export default function ReportsPage() {
+  const [businessFilter, setBusinessFilter] = useState("all");
+  const { data: businesses = [] } = api.businesses.getAll.useQuery();
   const { data: invoices = [], isLoading: invoicesLoading } =
     api.invoices.getAll.useQuery();
   const { data: expenses = [], isLoading: expensesLoading } =
-    api.expenses.getAll.useQuery();
+    api.expenses.getAll.useQuery(
+      businessFilter === "all" ? undefined : { businessId: businessFilter },
+    );
   const { data: stats } = api.dashboard.getStats.useQuery();
 
   const isLoading = invoicesLoading || expensesLoading;
@@ -62,9 +66,14 @@ export default function ReportsPage() {
   const currentYear = new Date().getFullYear();
   const [taxYear, setTaxYear] = useState(String(currentYear));
 
+  const filteredInvoices = useMemo(() => {
+    if (businessFilter === "all") return invoices;
+    return invoices.filter((inv) => inv.businessId === businessFilter);
+  }, [invoices, businessFilter]);
+
   // Overview data (last 12 months)
   const overviewData = useMemo(() => {
-    if (!invoices.length) return null;
+    if (!filteredInvoices.length) return null;
 
     const now = new Date();
     const monthMap: Record<string, number> = {};
@@ -78,7 +87,7 @@ export default function ReportsPage() {
     let totalPending = 0;
     let totalHours = 0;
 
-    for (const inv of invoices) {
+    for (const inv of filteredInvoices) {
       const status = getEffectiveInvoiceStatus(
         inv.status as StoredInvoiceStatus,
         inv.dueDate,
@@ -102,7 +111,7 @@ export default function ReportsPage() {
     }));
 
     const clientMap: Record<string, { name: string; revenue: number }> = {};
-    for (const inv of invoices) {
+    for (const inv of filteredInvoices) {
       const status = getEffectiveInvoiceStatus(
         inv.status as StoredInvoiceStatus,
         inv.dueDate,
@@ -126,7 +135,7 @@ export default function ReportsPage() {
       paid: 0,
       overdue: 0,
     };
-    for (const inv of invoices) {
+    for (const inv of filteredInvoices) {
       const s = getEffectiveInvoiceStatus(
         inv.status as StoredInvoiceStatus,
         inv.dueDate,
@@ -142,13 +151,13 @@ export default function ReportsPage() {
       totalHours,
       statusCount,
     };
-  }, [invoices]);
+  }, [filteredInvoices]);
 
   // Tax summary for selected year
   const taxData = useMemo(() => {
     const year = parseInt(taxYear);
 
-    const yearInvoices = invoices.filter((inv) => {
+    const yearInvoices = filteredInvoices.filter((inv) => {
       const status = getEffectiveInvoiceStatus(
         inv.status as StoredInvoiceStatus,
         inv.dueDate,
@@ -224,20 +233,20 @@ export default function ReportsPage() {
       yearInvoices,
       yearExpenses,
     };
-  }, [invoices, expenses, taxYear]);
+  }, [filteredInvoices, expenses, taxYear]);
 
   const availableYears = useMemo(() => {
     const years = new Set<number>([currentYear, currentYear - 1]);
-    for (const inv of invoices)
+    for (const inv of filteredInvoices)
       years.add(new Date(inv.issueDate).getFullYear());
     for (const exp of expenses) years.add(new Date(exp.date).getFullYear());
     return Array.from(years).sort((a, b) => b - a);
-  }, [invoices, expenses, currentYear]);
+  }, [filteredInvoices, expenses, currentYear]);
 
   const avgInvoice =
-    invoices.length > 0
+    filteredInvoices.length > 0
       ? (overviewData?.totalRevenue ?? 0) /
-        (invoices.filter(
+        (filteredInvoices.filter(
           (i) =>
             getEffectiveInvoiceStatus(
               i.status as StoredInvoiceStatus,
@@ -334,6 +343,23 @@ export default function ReportsPage() {
         title="Reports"
         description="Revenue and tax analytics"
       />
+
+      <div className="mb-4 flex items-center gap-3">
+        <span className="text-sm font-medium">Business</span>
+        <Select value={businessFilter} onValueChange={setBusinessFilter}>
+          <SelectTrigger className="w-52">
+            <SelectValue placeholder="All businesses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All businesses</SelectItem>
+            {businesses.map((b) => (
+              <SelectItem key={b.id} value={b.id}>
+                {b.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <PageTabs defaultValue="overview">
         <PageTabsList>
@@ -573,7 +599,7 @@ export default function ReportsPage() {
                           <div
                             className="bg-primary h-full rounded-full"
                             style={{
-                              width: `${invoices.length ? (count / invoices.length) * 100 : 0}%`,
+                              width: `${filteredInvoices.length ? (count / filteredInvoices.length) * 100 : 0}%`,
                             }}
                           />
                         </div>
@@ -584,7 +610,7 @@ export default function ReportsPage() {
                     </div>
                   ),
                 )}
-                {invoices.length === 0 && (
+                {filteredInvoices.length === 0 && (
                   <p className="text-muted-foreground py-6 text-center text-sm">
                     No invoices yet.
                   </p>
