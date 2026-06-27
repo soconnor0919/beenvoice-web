@@ -21,6 +21,28 @@ type S3Module = typeof import("@aws-sdk/client-s3");
 
 let s3ModulePromise: Promise<S3Module> | null = null;
 let s3Client: InstanceType<S3Module["S3Client"]> | null = null;
+let s3DnsHintLogged = false;
+
+function logS3DnsHint(error: unknown): void {
+  if (s3DnsHintLogged) return;
+  const code = (error as NodeJS.ErrnoException).code;
+  if (code !== "ENOTFOUND" && code !== "EAI_AGAIN") return;
+  s3DnsHintLogged = true;
+  const endpoint = process.env.S3_ENDPOINT ?? "(AWS default)";
+  console.error(
+    `[object-storage] S3 DNS failed (${code}) for endpoint ${endpoint}. ` +
+      "Separate Coolify stacks cannot resolve bare 'minio' — use the internal hostname from the MinIO resource UI and enable Connect to Predefined Network on the app. See docs/COOLIFY.md.",
+  );
+}
+
+async function withS3Diagnostics<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    logS3DnsHint(error);
+    throw error;
+  }
+}
 
 async function getS3() {
   if (!s3ModulePromise) {
@@ -53,13 +75,15 @@ export async function putObject(
 ): Promise<void> {
   if (isS3Configured()) {
     const { client, PutObjectCommand } = await getS3();
-    await client.send(
-      new PutObjectCommand({
-        Bucket: process.env.S3_BUCKET!,
-        Key: key,
-        Body: body,
-        ContentType: contentType,
-      }),
+    await withS3Diagnostics(() =>
+      client.send(
+        new PutObjectCommand({
+          Bucket: process.env.S3_BUCKET!,
+          Key: key,
+          Body: body,
+          ContentType: contentType,
+        }),
+      ),
     );
     return;
   }
@@ -72,11 +96,13 @@ export async function putObject(
 export async function getObject(key: string): Promise<Buffer> {
   if (isS3Configured()) {
     const { client, GetObjectCommand } = await getS3();
-    const response = await client.send(
-      new GetObjectCommand({
-        Bucket: process.env.S3_BUCKET!,
-        Key: key,
-      }),
+    const response = await withS3Diagnostics(() =>
+      client.send(
+        new GetObjectCommand({
+          Bucket: process.env.S3_BUCKET!,
+          Key: key,
+        }),
+      ),
     );
     const bytes = await response.Body?.transformToByteArray();
     if (!bytes) {
@@ -91,11 +117,13 @@ export async function getObject(key: string): Promise<Buffer> {
 export async function deleteObject(key: string): Promise<void> {
   if (isS3Configured()) {
     const { client, DeleteObjectCommand } = await getS3();
-    await client.send(
-      new DeleteObjectCommand({
-        Bucket: process.env.S3_BUCKET!,
-        Key: key,
-      }),
+    await withS3Diagnostics(() =>
+      client.send(
+        new DeleteObjectCommand({
+          Bucket: process.env.S3_BUCKET!,
+          Key: key,
+        }),
+      ),
     );
     return;
   }

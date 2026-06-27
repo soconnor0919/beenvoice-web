@@ -17,10 +17,8 @@ ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
 ARG BETTER_AUTH_URL=http://localhost:3000
 
 # Low-memory Docker build profile:
-# - disable React Compiler (saves compile RAM; prod image still runs fine without it)
 # - skip tsc inside `next build` (run `bun run check` in CI instead)
 ENV DOCKER_BUILD=1 \
-    DISABLE_REACT_COMPILER=1 \
     NODE_ENV=production \
     SKIP_ENV_VALIDATION=1 \
     NEXT_TELEMETRY_DISABLED=1 \

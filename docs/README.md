@@ -8,6 +8,7 @@
 |----------|-------------|
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Server stack, tRPC routers, schema, auth, MCP, Docker, mobile API contract |
 | [../README.md](../README.md) | Install, scripts, deployment |
+| [COOLIFY.md](./COOLIFY.md) | Coolify + MinIO networking (`ENOTFOUND minio`) |
 
 ## UI & product guides
 

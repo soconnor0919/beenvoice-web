@@ -1,34 +1,24 @@
+# MinIO-only stack for Coolify when Beevoice runs as a separate Application resource.
+#
+# Deploy: Coolify → Docker Compose → compose file: docker-compose.coolify-minio.yml
+#
+# Beevoice (Application) cannot use S3_ENDPOINT=http://minio:9000 unless it shares
+# this stack's Docker network AND that hostname resolves (usually it does not across
+# separate Coolify resources). See docs/COOLIFY.md — copy the internal hostname from
+# the MinIO resource UI into Beevoice's S3_ENDPOINT and enable "Connect to Predefined
+# Network" on the Beevoice app.
+#
+# Recommended alternative: deploy full docker-compose.yml as one Compose resource (app
+# + db + minio) so S3_ENDPOINT=http://minio:9000 works without extra networking.
 services:
-  db:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-postgres}
-    volumes:
-      - beenvoice_dev_pg_data:/var/lib/postgresql/data
-    healthcheck:
-      test:
-        ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    restart: unless-stopped
-
-  # S3-compatible receipt storage for host dev (`bun dev`). API :9000, console :9001.
   minio:
     image: minio/minio:latest
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     volumes:
-      - beenvoice_dev_minio_data:/data
+      - beenvoice_minio_data:/data
     command: server /data --console-address ":9001"
-    ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
@@ -55,5 +45,4 @@ services:
     restart: "no"
 
 volumes:
-  beenvoice_dev_pg_data:
-  beenvoice_dev_minio_data:
+  beenvoice_minio_data:
