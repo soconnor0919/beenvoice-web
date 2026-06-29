@@ -5,6 +5,7 @@ import { z } from "zod";
 import { auth } from "~/lib/auth";
 import { getDatabaseSetupErrorMessage } from "~/lib/db-errors";
 import { resolveNewUserRole } from "~/lib/first-admin";
+import { rateLimitKey, requireRateLimit } from "~/lib/rate-limit";
 import { env } from "~/env";
 import { db } from "~/server/db";
 import { accounts, users } from "~/server/db/schema";
@@ -71,6 +72,12 @@ function formatRegisterError(error: z.ZodError): string {
 
 export async function POST(request: NextRequest) {
   try {
+    const rateLimit = requireRateLimit(rateLimitKey(request, "auth:register"), {
+      windowMs: 60 * 60 * 1000,
+      max: 5,
+    });
+    if (rateLimit) return rateLimit;
+
     if (env.DISABLE_SIGNUPS === true) {
       return NextResponse.json(
         { error: "New account registration is currently disabled" },
@@ -106,13 +113,22 @@ export async function POST(request: NextRequest) {
     const { firstName, lastName, email, password } = parsed.data;
     const normalizedEmail = email.toLowerCase();
 
+    const emailRateLimit = requireRateLimit(
+      rateLimitKey(request, "auth:register-email", normalizedEmail),
+      {
+        windowMs: 60 * 60 * 1000,
+        max: 3,
+      },
+    );
+    if (emailRateLimit) return emailRateLimit;
+
     const existingUser = await db.query.users.findFirst({
       where: eq(users.email, normalizedEmail),
     });
 
     if (existingUser) {
       return NextResponse.json(
-        { error: "User with this email already exists" },
+        { error: "Registration failed. Please check the form or sign in." },
         { status: 400 },
       );
     }

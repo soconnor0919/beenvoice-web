@@ -7,6 +7,7 @@ import {
   createTRPCRouter,
   protectedProcedure,
   publicProcedure,
+  sessionProcedure,
 } from "~/server/api/trpc";
 import { requireAdmin } from "~/server/api/require-admin";
 import {
@@ -32,6 +33,7 @@ import {
   pdfTemplateSchema,
   type ColorMode,
 } from "~/lib/branding";
+import { revokeUserSessions } from "~/lib/session-security";
 
 function resolveBusinessId(
   refs: { businessName?: string; businessNickname?: string },
@@ -512,7 +514,7 @@ export const settingsRouter = createTRPCRouter({
     }),
 
   // Change user password
-  changePassword: protectedProcedure
+  changePassword: sessionProcedure
     .input(
       z
         .object({
@@ -595,11 +597,13 @@ export const settingsRouter = createTRPCRouter({
         }
       });
 
+      await revokeUserSessions(userId, ctx.session.session?.token);
+
       return { success: true };
     }),
 
   // Export user data (backup)
-  exportData: protectedProcedure.query(async ({ ctx }) => {
+  exportData: sessionProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
 
     const user = await ctx.db.query.users.findFirst({
@@ -855,7 +859,7 @@ export const settingsRouter = createTRPCRouter({
   }),
 
   // Import user data (restore)
-  importData: protectedProcedure
+  importData: sessionProcedure
     .input(BackupDataSchema)
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.session.user.id;
@@ -1168,7 +1172,7 @@ export const settingsRouter = createTRPCRouter({
   }),
 
   // Delete all user data (for account deletion)
-  deleteAllData: protectedProcedure
+  deleteAllData: sessionProcedure
     .input(
       z.object({
         confirmText: z.string().refine((val) => val === "DELETE ALL DATA", {

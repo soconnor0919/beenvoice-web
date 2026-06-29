@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isPublicRoute } from "~/lib/public-routes";
+import { safeCallbackPath } from "~/lib/safe-callback-url";
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -26,7 +27,10 @@ export function proxy(request: NextRequest) {
   // If no session token, redirect to sign-in
   if (!sessionToken) {
     const signInUrl = new URL("/auth/signin", request.url);
-    signInUrl.searchParams.set("callbackUrl", request.url);
+    signInUrl.searchParams.set(
+      "callbackUrl",
+      safeCallbackPath(`${request.nextUrl.pathname}${request.nextUrl.search}`),
+    );
     return NextResponse.redirect(signInUrl);
   }
 

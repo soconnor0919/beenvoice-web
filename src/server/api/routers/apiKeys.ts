@@ -7,22 +7,11 @@ import {
   getApiKeyDisplayPrefix,
   hashApiKey,
 } from "~/server/api/api-keys";
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, sessionProcedure } from "~/server/api/trpc";
 import { apiKeys } from "~/server/db/schema";
 
-function requireSessionAuth(ctx: { authSource: "session" | "api-key" | "none" }) {
-  if (ctx.authSource !== "session") {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "API keys can only be managed from an authenticated session",
-    });
-  }
-}
-
 export const apiKeysRouter = createTRPCRouter({
-  list: protectedProcedure.query(async ({ ctx }) => {
-    requireSessionAuth(ctx);
-
+  list: sessionProcedure.query(async ({ ctx }) => {
     return ctx.db.query.apiKeys.findMany({
       where: eq(apiKeys.userId, ctx.session.user.id),
       columns: {
@@ -39,7 +28,7 @@ export const apiKeysRouter = createTRPCRouter({
     });
   }),
 
-  create: protectedProcedure
+  create: sessionProcedure
     .input(
       z.object({
         name: z.string().trim().min(1).max(100),
@@ -47,8 +36,6 @@ export const apiKeysRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      requireSessionAuth(ctx);
-
       if (input.expiresAt && input.expiresAt <= new Date()) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -84,11 +71,9 @@ export const apiKeysRouter = createTRPCRouter({
       return { ...apiKey, key };
     }),
 
-  revoke: protectedProcedure
+  revoke: sessionProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      requireSessionAuth(ctx);
-
       const now = new Date();
       const [apiKey] = await ctx.db
         .update(apiKeys)
@@ -108,9 +93,7 @@ export const apiKeysRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  revokeAll: protectedProcedure.mutation(async ({ ctx }) => {
-    requireSessionAuth(ctx);
-
+  revokeAll: sessionProcedure.mutation(async ({ ctx }) => {
     const now = new Date();
     await ctx.db
       .update(apiKeys)

@@ -34,7 +34,10 @@ export const env = createEnv({
       .default("development"),
     DB_DISABLE_SSL: optionalEnvBoolean(),
     DISABLE_SIGNUPS: optionalEnvBoolean().default(true),
-    CRON_SECRET: z.string().optional(),
+    CRON_SECRET:
+      process.env.NODE_ENV === "production"
+        ? z.string().min(32)
+        : z.string().optional(),
     // S3-compatible object storage (optional — local .data/receipts/ fallback when unset)
     S3_ENDPOINT: z.string().url().optional(),
     S3_BUCKET: z.string().optional(),

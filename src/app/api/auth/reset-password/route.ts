@@ -1,11 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { eq, and, gt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { hashPasswordResetToken } from "~/lib/reset-token";
+import { revokeUserSessions } from "~/lib/session-security";
+import { rateLimitKey, requireRateLimit } from "~/lib/rate-limit";
 import { db } from "~/server/db";
 import { accounts, users } from "~/server/db/schema";
 
 export async function POST(request: NextRequest) {
   try {
+    const ipRateLimit = requireRateLimit(rateLimitKey(request, "auth:reset"), {
+      windowMs: 60 * 1000,
+      max: 10,
+    });
+    if (ipRateLimit) return ipRateLimit;
+
     const { token, password } = (await request.json()) as {
       token: string;
       password: string;
@@ -29,10 +38,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const tokenRateLimit = requireRateLimit(
+      rateLimitKey(request, "auth:reset-token", token),
+      {
+        windowMs: 60 * 60 * 1000,
+        max: 5,
+      },
+    );
+    if (tokenRateLimit) return tokenRateLimit;
+
+    const tokenHash = hashPasswordResetToken(token);
+
     // Find user with valid reset token that hasn't expired
     const user = await db.query.users.findFirst({
       where: and(
-        eq(users.resetToken, token),
+        eq(users.resetToken, tokenHash),
         gt(users.resetTokenExpiry, new Date()),
       ),
     });
@@ -81,6 +101,8 @@ export async function POST(request: NextRequest) {
         });
       }
     });
+
+    await revokeUserSessions(user.id);
 
     return NextResponse.json(
       {

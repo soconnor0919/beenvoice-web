@@ -15,6 +15,7 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { env } from "~/env";
 import { authClient } from "~/lib/auth-client";
+import { safeCallbackPath } from "~/lib/safe-callback-url";
 import { toast } from "sonner";
 
 interface SignInFormProps {
@@ -25,7 +26,7 @@ export function SignInForm({ allowRegistration }: SignInFormProps) {
   const authentikEnabled = env.NEXT_PUBLIC_AUTHENTIK_ENABLED === true;
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
+  const callbackUrl = safeCallbackPath(searchParams.get("callbackUrl"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);

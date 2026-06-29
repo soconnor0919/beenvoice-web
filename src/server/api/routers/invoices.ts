@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+  sessionProcedure,
+} from "../trpc";
 import {
   invoices,
   invoiceItems,
@@ -754,7 +759,7 @@ export const invoicesRouter = createTRPCRouter({
       return { success: true, deleted: ownedIds.length };
     }),
 
-  bulkImport: protectedProcedure
+  bulkImport: sessionProcedure
     .input(bulkImportSchema)
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.session.user.id;
@@ -998,7 +1003,7 @@ export const invoicesRouter = createTRPCRouter({
 
   // ── Public token (shareable link) ──────────────────────────────────────────
 
-  generatePublicToken: protectedProcedure
+  generatePublicToken: sessionProcedure
     .input(z.object({ id: z.string(), ttlHours: z.number().positive().optional() }))
     .mutation(async ({ ctx, input }) => {
       const invoice = await ctx.db.query.invoices.findFirst({
@@ -1018,7 +1023,7 @@ export const invoicesRouter = createTRPCRouter({
       return { token, expiresAt };
     }),
 
-  revokePublicToken: protectedProcedure
+  revokePublicToken: sessionProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const invoice = await ctx.db.query.invoices.findFirst({
@@ -1060,7 +1065,7 @@ export const invoicesRouter = createTRPCRouter({
 
   // ── Send reminder ──────────────────────────────────────────────────────────
 
-  sendReminder: protectedProcedure
+  sendReminder: sessionProcedure
     .input(z.object({ id: z.string(), customMessage: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const invoice = await ctx.db.query.invoices.findFirst({

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "~/server/db";
 import { users } from "~/server/db/schema";
 import { sendPasswordResetForUser } from "~/lib/password-reset";
+import { rateLimitKey, requireRateLimit } from "~/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,8 +13,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+    const ipRateLimit = requireRateLimit(rateLimitKey(request, "auth:forgot"), {
+      windowMs: 60 * 60 * 1000,
+      max: 10,
+    });
+    if (ipRateLimit) return ipRateLimit;
+
+    const emailRateLimit = requireRateLimit(
+      rateLimitKey(request, "auth:forgot-email", normalizedEmail),
+      {
+        windowMs: 60 * 60 * 1000,
+        max: 3,
+      },
+    );
+    if (emailRateLimit) return emailRateLimit;
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(normalizedEmail)) {
       return NextResponse.json(
         { error: "Invalid email format" },
         { status: 400 },
@@ -21,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     const user = await db.query.users.findFirst({
-      where: eq(users.email, email.toLowerCase()),
+      where: eq(users.email, normalizedEmail),
       columns: { id: true },
     });
 

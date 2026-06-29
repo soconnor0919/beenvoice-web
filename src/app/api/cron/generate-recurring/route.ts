@@ -7,7 +7,14 @@ export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const secret = env.CRON_SECRET;
 
-  if (secret && authHeader !== `Bearer ${secret}`) {
+  if (!secret) {
+    return NextResponse.json(
+      { error: "Cron secret is not configured" },
+      { status: 500 },
+    );
+  }
+
+  if (authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

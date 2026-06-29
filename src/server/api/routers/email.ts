@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Resend } from "resend";
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, sessionProcedure } from "~/server/api/trpc";
 import { invoices, platformSettings } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
 import { env } from "~/env";
@@ -36,7 +36,7 @@ function normalizeEmailNoteHtml(value: string) {
 }
 
 export const emailRouter = createTRPCRouter({
-  sendInvoice: protectedProcedure
+  sendInvoice: sessionProcedure
     .input(
       z.object({
         invoiceId: z.string(),

@@ -5,6 +5,7 @@ import { nextCookies } from "better-auth/next-js";
 import { genericOAuth } from "better-auth/plugins";
 import { env } from "~/env";
 import { isDemoUser, promoteFirstRealUserIfNeeded } from "~/lib/first-admin";
+import { sendPasswordResetEmail } from "~/lib/password-reset";
 import { db } from "~/server/db";
 import * as schema from "~/server/db/schema";
 
@@ -26,7 +27,9 @@ const staticTrustedOrigins = [
   ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
   ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
   "beenvoice://",
-  "exp://",
+  ...(env.NODE_ENV === "development"
+    ? ["exp://", "http://localhost:3000", "http://127.0.0.1:3000"]
+    : []),
   ...(authentikOrigin ? [authentikOrigin] : []),
   ...(process.env.AUTHENTIK_ORIGIN ? [process.env.AUTHENTIK_ORIGIN] : []),
 ];
@@ -36,6 +39,29 @@ export const auth = betterAuth({
   secret: process.env.AUTH_SECRET,
   advanced: {
     trustedProxyHeaders: true,
+  },
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/email": {
+        window: 60,
+        max: 10,
+      },
+      "/sign-up/email": {
+        window: 60 * 60,
+        max: 5,
+      },
+      "/request-password-reset": {
+        window: 60 * 60,
+        max: 5,
+      },
+      "/reset-password": {
+        window: 60,
+        max: 10,
+      },
+    },
   },
   experimental: {
     joins: true,
@@ -61,25 +87,7 @@ export const auth = betterAuth({
       },
     },
   },
-  trustedOrigins: async (request) => {
-    const origins = [...staticTrustedOrigins];
-
-    if (!request) return origins;
-
-    const origin = request.headers.get("origin");
-    if (origin) origins.push(origin);
-
-    const forwardedHost = request.headers.get("x-forwarded-host");
-    const forwardedProto = request.headers.get("x-forwarded-proto") ?? "https";
-    if (forwardedHost) {
-      for (const host of forwardedHost.split(",")) {
-        const trimmed = host.trim();
-        if (trimmed) origins.push(`${forwardedProto}://${trimmed}`);
-      }
-    }
-
-    return origins;
-  },
+  trustedOrigins: staticTrustedOrigins,
   ...(authentikEnabled && {
     accountLinking: {
       enabled: true,
@@ -89,6 +97,16 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     disableSignUp: signupsDisabled,
+    minPasswordLength: 8,
+    resetPasswordTokenExpiresIn: 60 * 60,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, token }) => {
+      await sendPasswordResetEmail({
+        userEmail: user.email,
+        userName: user.name ?? undefined,
+        resetToken: token,
+      });
+    },
     password: {
       hash: async (password) => {
         const bcrypt = await import("bcryptjs");

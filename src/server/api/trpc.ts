@@ -12,7 +12,11 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 
 import { auth } from "~/lib/auth";
-import { hasSessionCookie } from "~/lib/auth-server";
+import {
+  hasSessionCookie,
+  headersWithAuthCookieFallback,
+} from "~/lib/auth-server";
+import { checkRateLimit } from "~/lib/rate-limit";
 import { db } from "~/server/db";
 import { getBearerToken, getUserForApiKey } from "~/server/api/api-keys";
 
@@ -29,7 +33,8 @@ import { getBearerToken, getUserForApiKey } from "~/server/api/api-keys";
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  const bearerToken = getBearerToken(opts.headers);
+  const headers = headersWithAuthCookieFallback(opts.headers);
+  const bearerToken = getBearerToken(headers);
 
   if (bearerToken) {
     const apiKeyAuth = await getUserForApiKey(db, bearerToken);
@@ -44,23 +49,25 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
         authSource: "api-key" as const,
         apiKeyId: apiKeyAuth.apiKeyId,
         ...opts,
+        headers,
       };
     }
   }
 
-  if (!hasSessionCookie(opts.headers)) {
+  if (!hasSessionCookie(headers)) {
     return {
       db,
       session: null,
       authSource: "none" as const,
       apiKeyId: null,
       ...opts,
+      headers,
     };
   }
 
   try {
     const session = await auth.api.getSession({
-      headers: opts.headers,
+      headers,
     });
 
     return {
@@ -69,6 +76,7 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
       authSource: session?.user ? ("session" as const) : ("none" as const),
       apiKeyId: null,
       ...opts,
+      headers,
     };
   } catch (error) {
     console.error("[tRPC] Failed to resolve session:", error);
@@ -79,6 +87,7 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
       authSource: "none" as const,
       apiKeyId: null,
       ...opts,
+      headers,
     };
   }
 };
@@ -143,6 +152,24 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
   return result;
 });
 
+const apiKeyRateLimitMiddleware = t.middleware(({ ctx, next }) => {
+  if (ctx.authSource === "api-key" && ctx.apiKeyId) {
+    const result = checkRateLimit(`trpc:api-key:${ctx.apiKeyId}`, {
+      windowMs: 60 * 1000,
+      max: 120,
+    });
+
+    if (!result.allowed) {
+      throw new TRPCError({
+        code: "TOO_MANY_REQUESTS",
+        message: "API key rate limit exceeded. Please try again later.",
+      });
+    }
+  }
+
+  return next();
+});
+
 /**
  * Public (unauthenticated) procedure
  *
@@ -150,7 +177,9 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
  * guarantee that a user querying is authorized, but you can still access user session data if they
  * are logged in.
  */
-export const publicProcedure = t.procedure.use(timingMiddleware);
+export const publicProcedure = t.procedure
+  .use(timingMiddleware)
+  .use(apiKeyRateLimitMiddleware);
 
 /**
  * Protected (authenticated) procedure
@@ -173,3 +202,14 @@ export const protectedProcedure = t.procedure
       },
     });
   });
+
+export const sessionProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.authSource !== "session") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "This action requires an authenticated browser or app session",
+    });
+  }
+
+  return next();
+});
