@@ -3,7 +3,10 @@
 import { useMemo, useState } from "react";
 import { api } from "~/trpc/react";
 import { DashboardPageHeader } from "~/components/layout/page-header";
-import { DashboardPage, dashboardStatGridClass } from "~/components/layout/dashboard-page";
+import {
+  DashboardPage,
+  dashboardStatGridClass,
+} from "~/components/layout/dashboard-page";
 import { EmptyState } from "~/components/layout/page-layout";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -31,9 +34,22 @@ import { NumberInput } from "~/components/ui/number-input";
 import { ExpenseReceiptsPanel } from "~/components/expenses/expense-receipts-panel";
 import { ExpenseReceiptIndicator } from "~/components/expenses/expense-receipt-indicator";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Receipt, Eye } from "lucide-react";
+import {
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Receipt,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { formatCurrency, SUPPORTED_CURRENCIES } from "~/lib/currency";
 import { EXPENSE_CATEGORIES } from "~/lib/expense-categories";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 
 interface ExpenseFormData {
   date: Date;
@@ -64,6 +80,7 @@ const defaultForm: ExpenseFormData = {
 };
 
 type ExpenseDialogMode = "create" | "view" | "edit";
+type ExpenseFilter = "all" | "billable" | "deductible" | "receipts";
 
 function expenseToForm(
   expense: {
@@ -103,6 +120,8 @@ export default function ExpensesPage() {
   const [form, setForm] = useState<ExpenseFormData>(defaultForm);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [businessFilter, setBusinessFilter] = useState("all");
+  const [expenseFilter, setExpenseFilter] = useState<ExpenseFilter>("all");
+  const [search, setSearch] = useState("");
 
   const utils = api.useUtils();
   const { data: businesses = [] } = api.businesses.getAll.useQuery();
@@ -192,7 +211,29 @@ export default function ExpensesPage() {
     else create.mutate(payload);
   };
 
+  const filteredExpenses = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return expenses.filter((expense) => {
+      if (expenseFilter === "billable" && !expense.billable) return false;
+      if (expenseFilter === "deductible" && !expense.taxDeductible)
+        return false;
+      if (expenseFilter === "receipts" && expense.receiptCount === 0)
+        return false;
+      if (!needle) return true;
+      return [
+        expense.description,
+        expense.category,
+        expense.notes,
+        expense.business?.name,
+        expense.client?.name,
+      ]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(needle));
+    });
+  }, [expenseFilter, expenses, search]);
+
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+  const visibleTotal = filteredExpenses.reduce((s, e) => s + e.amount, 0);
   const billableTotal = expenses
     .filter((e) => e.billable)
     .reduce((s, e) => s + e.amount, 0);
@@ -200,6 +241,10 @@ export default function ExpensesPage() {
     .filter((e) => e.taxDeductible)
     .reduce((s, e) => s + e.amount, 0);
   const withReceipts = expenses.filter((e) => e.receiptCount > 0).length;
+  const hasActiveFilters =
+    search.trim().length > 0 ||
+    expenseFilter !== "all" ||
+    businessFilter !== "all";
 
   const isViewMode = dialogMode === "view";
   const isEditMode = dialogMode === "edit";
@@ -238,23 +283,6 @@ export default function ExpensesPage() {
           <Plus className="mr-2 h-5 w-5" /> Add Expense
         </Button>
       </DashboardPageHeader>
-
-      <div className="mb-4 flex items-center gap-3">
-        <Label className="text-sm">Business</Label>
-        <Select value={businessFilter} onValueChange={setBusinessFilter}>
-          <SelectTrigger className="w-52">
-            <SelectValue placeholder="All businesses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All businesses</SelectItem>
-            {businesses.map((b) => (
-              <SelectItem key={b.id} value={b.id}>
-                {b.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
 
       <div className={dashboardStatGridClass}>
         <Card>
@@ -298,10 +326,64 @@ export default function ExpensesPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Receipt className="h-5 w-5" /> All Expenses
-          </CardTitle>
+        <CardHeader className="gap-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Receipt className="h-5 w-5" /> Expenses
+              </CardTitle>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {filteredExpenses.length === expenses.length
+                  ? `${expenses.length} recorded`
+                  : `${filteredExpenses.length} of ${expenses.length} shown`}
+                {filteredExpenses.length !== expenses.length
+                  ? ` · ${formatCurrency(visibleTotal)} visible`
+                  : ""}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="relative sm:w-64">
+                <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search expenses"
+                  className="pl-9"
+                />
+              </div>
+              <Select value={businessFilter} onValueChange={setBusinessFilter}>
+                <SelectTrigger className="sm:w-52">
+                  <SelectValue placeholder="All businesses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All businesses</SelectItem>
+                  {businesses.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              ["all", "All"] as const,
+              ["billable", "Billable"] as const,
+              ["deductible", "Deductible"] as const,
+              ["receipts", "With receipts"] as const,
+            ].map(([value, label]) => (
+              <Button
+                key={value}
+                type="button"
+                variant={expenseFilter === value ? "default" : "outline"}
+                size="sm"
+                onClick={() => setExpenseFilter(value)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -320,16 +402,36 @@ export default function ExpensesPage() {
                 </Button>
               }
             />
+          ) : filteredExpenses.length === 0 ? (
+            <EmptyState
+              icon={<Search className="h-6 w-6" />}
+              title="No matching expenses"
+              description="Adjust the search or filters to bring expenses back into view."
+              action={
+                hasActiveFilters ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSearch("");
+                      setExpenseFilter("all");
+                      setBusinessFilter("all");
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <>
-              <div className="text-muted-foreground hidden border-b px-4 py-2 text-xs font-medium tracking-wide uppercase sm:grid sm:grid-cols-[1fr_88px_96px_auto] sm:gap-3">
+              <div className="text-muted-foreground hidden border-b px-4 py-2 text-xs font-medium tracking-wide uppercase sm:grid sm:grid-cols-[minmax(0,1fr)_104px_116px_44px] sm:gap-3">
                 <span>Expense</span>
                 <span className="text-center">Receipts</span>
                 <span className="text-right">Amount</span>
-                <span className="w-[108px]" />
+                <span />
               </div>
               <div className="divide-y">
-                {expenses.map((expense) => (
+                {filteredExpenses.map((expense) => (
                   <div
                     key={expense.id}
                     role="button"
@@ -341,7 +443,7 @@ export default function ExpensesPage() {
                         handleView(expense);
                       }
                     }}
-                    className="hover:bg-muted/40 focus-visible:ring-ring flex cursor-pointer flex-col gap-3 p-4 transition-colors focus-visible:ring-2 focus-visible:outline-none sm:grid sm:grid-cols-[1fr_88px_96px_auto] sm:items-start sm:gap-3"
+                    className="hover:bg-muted/40 focus-visible:ring-ring flex cursor-pointer flex-col gap-3 p-4 transition-colors focus-visible:ring-2 focus-visible:outline-none sm:grid sm:grid-cols-[minmax(0,1fr)_104px_116px_44px] sm:items-center sm:gap-3"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -400,42 +502,43 @@ export default function ExpensesPage() {
                       />
                     </div>
 
-                    <div className="flex items-center justify-between sm:contents">
-                      <p className="font-semibold sm:text-right">
-                        {formatCurrency(expense.amount, expense.currency)}
-                      </p>
-                      <div
-                        className="flex flex-shrink-0 items-center gap-1 sm:gap-2"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => handleView(expense)}
-                          title="View expense"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => handleEdit(expense)}
-                          title="Edit expense"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive h-8 w-8 p-0"
-                          onClick={() => setDeleteId(expense.id)}
-                          title="Delete expense"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                    <p className="font-semibold sm:text-right">
+                      {formatCurrency(expense.amount, expense.currency)}
+                    </p>
+
+                    <div
+                      className="flex justify-end"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-9 w-9 p-0"
+                            aria-label={`Actions for ${expense.description}`}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleView(expense)}>
+                            <Receipt className="mr-2 h-4 w-4" />
+                            View details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEdit(expense)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={() => setDeleteId(expense.id)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 ))}
@@ -540,163 +643,171 @@ export default function ExpensesPage() {
               </div>
             ) : (
               <>
-            <div className="space-y-2">
-              <Label>Description *</Label>
-              <Input
-                value={form.description}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, description: e.target.value }))
-                }
-                placeholder="e.g. Laptop charger"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Amount *</Label>
-                <NumberInput
-                  value={form.amount}
-                  onChange={(v) => setForm((p) => ({ ...p, amount: v }))}
-                  min={0}
-                  step={0.01}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Currency</Label>
-                <Select
-                  value={form.currency}
-                  onValueChange={(v) => setForm((p) => ({ ...p, currency: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SUPPORTED_CURRENCIES.map((c) => (
-                      <SelectItem key={c.code} value={c.code}>
-                        {c.code}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Date</Label>
-                <DatePicker
-                  date={form.date}
-                  onDateChange={(d) =>
-                    setForm((p) => ({ ...p, date: d ?? new Date() }))
-                  }
-                  className="w-full"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Category</Label>
-                <Select
-                  value={form.category || "none"}
-                  onValueChange={(v) =>
-                    setForm((p) => ({ ...p, category: v === "none" ? "" : v }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {EXPENSE_CATEGORIES.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Business</Label>
-              <Select
-                value={form.businessId || "none"}
-                onValueChange={(v) =>
-                  setForm((p) => ({
-                    ...p,
-                    businessId: v === "none" ? "" : v,
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select business" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Default business</SelectItem>
-                  {businesses.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
-                      {b.isDefault ? " (default)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Client (optional)</Label>
-              <Select
-                value={form.clientId || "none"}
-                onValueChange={(v) =>
-                  setForm((p) => ({ ...p, clientId: v === "none" ? "" : v }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="No client" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No client</SelectItem>
-                  {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-wrap gap-6">
-              <label className="flex cursor-pointer items-center gap-2">
-                <Checkbox
-                  checked={form.billable}
-                  onCheckedChange={(v) =>
-                    setForm((p) => ({ ...p, billable: !!v }))
-                  }
-                />
-                <span className="text-sm">Billable</span>
-              </label>
-              <label className="flex cursor-pointer items-center gap-2">
-                <Checkbox
-                  checked={form.reimbursable}
-                  onCheckedChange={(v) =>
-                    setForm((p) => ({ ...p, reimbursable: !!v }))
-                  }
-                />
-                <span className="text-sm">Reimbursable</span>
-              </label>
-              <label className="flex cursor-pointer items-center gap-2">
-                <Checkbox
-                  checked={form.taxDeductible}
-                  onCheckedChange={(v) =>
-                    setForm((p) => ({ ...p, taxDeductible: !!v }))
-                  }
-                />
-                <span className="text-sm">Tax Deductible</span>
-              </label>
-            </div>
-            <div className="space-y-2">
-              <Label>Notes (optional)</Label>
-              <Input
-                value={form.notes}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, notes: e.target.value }))
-                }
-                placeholder="Additional details…"
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label>Description *</Label>
+                  <Input
+                    value={form.description}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, description: e.target.value }))
+                    }
+                    placeholder="e.g. Laptop charger"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Amount *</Label>
+                    <NumberInput
+                      value={form.amount}
+                      onChange={(v) => setForm((p) => ({ ...p, amount: v }))}
+                      min={0}
+                      step={0.01}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Currency</Label>
+                    <Select
+                      value={form.currency}
+                      onValueChange={(v) =>
+                        setForm((p) => ({ ...p, currency: v }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SUPPORTED_CURRENCIES.map((c) => (
+                          <SelectItem key={c.code} value={c.code}>
+                            {c.code}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Date</Label>
+                    <DatePicker
+                      date={form.date}
+                      onDateChange={(d) =>
+                        setForm((p) => ({ ...p, date: d ?? new Date() }))
+                      }
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Category</Label>
+                    <Select
+                      value={form.category || "none"}
+                      onValueChange={(v) =>
+                        setForm((p) => ({
+                          ...p,
+                          category: v === "none" ? "" : v,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {EXPENSE_CATEGORIES.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Business</Label>
+                  <Select
+                    value={form.businessId || "none"}
+                    onValueChange={(v) =>
+                      setForm((p) => ({
+                        ...p,
+                        businessId: v === "none" ? "" : v,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select business" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Default business</SelectItem>
+                      {businesses.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.name}
+                          {b.isDefault ? " (default)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Client (optional)</Label>
+                  <Select
+                    value={form.clientId || "none"}
+                    onValueChange={(v) =>
+                      setForm((p) => ({
+                        ...p,
+                        clientId: v === "none" ? "" : v,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="No client" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No client</SelectItem>
+                      {clients.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-wrap gap-6">
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <Checkbox
+                      checked={form.billable}
+                      onCheckedChange={(v) =>
+                        setForm((p) => ({ ...p, billable: !!v }))
+                      }
+                    />
+                    <span className="text-sm">Billable</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <Checkbox
+                      checked={form.reimbursable}
+                      onCheckedChange={(v) =>
+                        setForm((p) => ({ ...p, reimbursable: !!v }))
+                      }
+                    />
+                    <span className="text-sm">Reimbursable</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <Checkbox
+                      checked={form.taxDeductible}
+                      onCheckedChange={(v) =>
+                        setForm((p) => ({ ...p, taxDeductible: !!v }))
+                      }
+                    />
+                    <span className="text-sm">Tax Deductible</span>
+                  </label>
+                </div>
+                <div className="space-y-2">
+                  <Label>Notes (optional)</Label>
+                  <Input
+                    value={form.notes}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, notes: e.target.value }))
+                    }
+                    placeholder="Additional details…"
+                  />
+                </div>
               </>
             )}
 
@@ -715,19 +826,19 @@ export default function ExpensesPage() {
               </>
             ) : (
               <>
-            <Button variant="outline" onClick={closeDialog}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={create.isPending || update.isPending}
-            >
-              {create.isPending || update.isPending
-                ? "Saving…"
-                : isEditMode
-                  ? "Update"
-                  : "Save & add receipts"}
-            </Button>
+                <Button variant="outline" onClick={closeDialog}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={create.isPending || update.isPending}
+                >
+                  {create.isPending || update.isPending
+                    ? "Saving…"
+                    : isEditMode
+                      ? "Update"
+                      : "Save & add receipts"}
+                </Button>
               </>
             )}
           </DialogFooter>
