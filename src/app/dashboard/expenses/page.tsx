@@ -813,23 +813,35 @@ export default function ExpensesPage() {
 
             <ExpenseReceiptsPanel expenseId={editId} readOnly={isViewMode} />
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2 sm:gap-3">
             {isViewMode ? (
               <>
-                <Button variant="outline" onClick={closeDialog}>
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  onClick={closeDialog}
+                >
                   Close
                 </Button>
-                <Button onClick={() => setDialogMode("edit")}>
+                <Button
+                  className="w-full sm:w-auto"
+                  onClick={() => setDialogMode("edit")}
+                >
                   <Pencil className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
               </>
             ) : (
               <>
-                <Button variant="outline" onClick={closeDialog}>
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  onClick={closeDialog}
+                >
                   Cancel
                 </Button>
                 <Button
+                  className="w-full sm:w-auto"
                   onClick={handleSubmit}
                   disabled={create.isPending || update.isPending}
                 >
