@@ -5,12 +5,23 @@ const MOBILE_AUTH_COOKIE_HEADER = "x-beenvoice-auth-cookie";
 const MAX_AUTH_COOKIE_HEADER_LENGTH = 16 * 1024;
 
 function looksLikeSessionCookie(cookie: string): boolean {
-  return (
-    cookie.includes("session_token=") ||
-    cookie.includes("session_data=") ||
-    cookie.includes("better-auth.session_token=") ||
-    cookie.includes("__Secure-better-auth.session_token=")
-  );
+  return cookie.split(";").some((part) => {
+    const name =
+      part
+        .trim()
+        .split("=", 1)[0]
+        ?.replace(/^__Secure-/, "") ?? "";
+    return (
+      name === "better-auth.session_token" ||
+      name === "better-auth.session_data" ||
+      name.startsWith("better-auth.session_token.") ||
+      name.startsWith("better-auth.session_data.") ||
+      name.endsWith(".session_token") ||
+      name.endsWith(".session_data") ||
+      name.includes(".session_token.") ||
+      name.includes(".session_data.")
+    );
+  });
 }
 
 export function headersWithAuthCookieFallback(headers: Headers): Headers {

@@ -3,6 +3,16 @@ import type { NextRequest } from "next/server";
 import { isPublicRoute } from "~/lib/public-routes";
 import { safeCallbackPath } from "~/lib/safe-callback-url";
 
+function hasBetterAuthSessionCookie(request: NextRequest) {
+  return request.cookies.getAll().some(({ name }) => {
+    const cookieName = name.replace(/^__Secure-/, "");
+    return (
+      cookieName === "better-auth.session_token" ||
+      cookieName.startsWith("better-auth.session_token.")
+    );
+  });
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -19,13 +29,8 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for session token in cookies (Better Auth cookie names)
-  const sessionToken =
-    request.cookies.get("better-auth.session_token")?.value ??
-    request.cookies.get("__Secure-better-auth.session_token")?.value;
-
   // If no session token, redirect to sign-in
-  if (!sessionToken) {
+  if (!hasBetterAuthSessionCookie(request)) {
     const signInUrl = new URL("/auth/signin", request.url);
     signInUrl.searchParams.set(
       "callbackUrl",
