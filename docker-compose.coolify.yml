@@ -1,13 +1,13 @@
-# Beevoice on Coolify — single Docker Compose resource (recommended).
+# beenvoice on Coolify — single Docker Compose resource (recommended).
 #
 # Deploy: Coolify → New Resource → Docker Compose → compose file: docker-compose.coolify.yml
 #
 # 1. Assign a domain to the `app` service in Coolify (SERVICE_FQDN_APP wires Traefik).
-# 2. Set AUTH_SECRET, POSTGRES_PASSWORD, MINIO_ROOT_* in the resource env (see .env.example).
-# 3. Do NOT override S3_ENDPOINT — this stack sets http://minio:9000 on the shared network.
+# 2. Set AUTH_SECRET, POSTGRES_PASSWORD, S3_ACCESS_KEY, S3_SECRET_KEY in the resource env (see .env.example).
+# 3. Do NOT override S3_ENDPOINT — this stack sets http://garage:3900 on the shared network.
 # 4. Rebuild after changing NEXT_PUBLIC_* (image build args use SERVICE_URL_APP).
 #
-# Migrating from Application + separate Postgres + MinIO compose:
+# Migrating from Application + separate Postgres + Garage compose:
 #   - Export Postgres data, point DATABASE_URL at this stack's `db` service, redeploy once here.
 #   - Or keep external Postgres and remove the `db` service + volume from this file.
 services:
@@ -36,20 +36,18 @@ services:
       AUTHENTIK_CLIENT_ID: ${AUTHENTIK_CLIENT_ID:-}
       AUTHENTIK_CLIENT_SECRET: ${AUTHENTIK_CLIENT_SECRET:-}
       AUTHENTIK_ORIGIN: ${AUTHENTIK_ORIGIN:-}
-      S3_ENDPOINT: http://minio:9000
+      S3_ENDPOINT: http://garage:3900
       S3_BUCKET: ${S3_BUCKET:-beenvoice-receipts}
-      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-GK3515373e4c851ebaad366558}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-7d37d093435a41f2aab8f13c19ba067d9776c90215f56614adad6ece597dbb34}
+      S3_REGION: ${S3_REGION:-garage}
     expose:
       - "3000"
     depends_on:
       db:
         condition: service_healthy
-      minio:
+      garage:
         condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
     restart: unless-stopped
 
   db:
@@ -68,44 +66,58 @@ services:
       retries: 10
     restart: unless-stopped
 
-  minio:
-    image: minio/minio:latest
-    # Optional: assign domains in Coolify for console / external S3 API access.
+  garage:
+    image: dxflrs/garage:v2.3.0
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      SERVICE_FQDN_MINIO_9001:
+      GARAGE_DEFAULT_ACCESS_KEY: ${S3_ACCESS_KEY:-GK3515373e4c851ebaad366558}
+      GARAGE_DEFAULT_SECRET_KEY: ${S3_SECRET_KEY:-7d37d093435a41f2aab8f13c19ba067d9776c90215f56614adad6ece597dbb34}
+      GARAGE_DEFAULT_BUCKET: ${S3_BUCKET:-beenvoice-receipts}
+      SERVICE_FQDN_GARAGE_3900:
+    configs:
+      - source: garage_config
+        target: /etc/garage.toml
     volumes:
-      - beenvoice_minio_data:/data
-    command: server /data --console-address ":9001"
+      - beenvoice_garage_meta:/var/lib/garage/meta
+      - beenvoice_garage_data:/var/lib/garage/data
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
     expose:
-      - "9000"
-      - "9001"
+      - "3900"
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "/garage", "status"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 15
+      start_period: 20s
     restart: unless-stopped
-
-  minio-init:
-    image: minio/mc:latest
-    depends_on:
-      minio:
-        condition: service_healthy
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      S3_BUCKET: ${S3_BUCKET:-beenvoice-receipts}
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - >-
-        mc alias set local http://minio:9000
-        "$${MINIO_ROOT_USER:-minioadmin}"
-        "$${MINIO_ROOT_PASSWORD:-minioadmin}" &&
-        mc mb "local/$${S3_BUCKET:-beenvoice-receipts}" --ignore-existing
-    restart: "no"
 
 volumes:
   beenvoice_pg_data:
-  beenvoice_minio_data:
+  beenvoice_garage_meta:
+  beenvoice_garage_data:
+
+configs:
+  garage_config:
+    content: |
+      metadata_dir = "/var/lib/garage/meta"
+      data_dir = "/var/lib/garage/data"
+      db_engine = "sqlite"
+      replication_factor = 1
+
+      rpc_bind_addr = "[::]:3901"
+      rpc_public_addr = "garage:3901"
+      rpc_secret = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+
+      [s3_api]
+      s3_region = "garage"
+      api_bind_addr = "[::]:3900"
+      root_domain = ".s3.garage"
+
+      [s3_web]
+      bind_addr = "[::]:3902"
+      root_domain = ".web.garage"
+      index = "index.html"
+
+      [admin]
+      api_bind_addr = "[::]:3903"
+      admin_token = "beenvoice_garage_admin_token_change_me_in_production"
+      metrics_token = "beenvoice_garage_metrics_token_change_me_in_production"

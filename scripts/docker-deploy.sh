@@ -3,8 +3,8 @@ set -euo pipefail
 
 # Production deploy helper for docker-compose.yml (not docker-compose.dev.yml).
 # Rebuilds the app image from the current working tree, then starts/restarts services
-# (app, db, minio, minio-init). Receipt storage uses in-stack MinIO unless S3_* are
-# overridden in .env. MinIO API/console: localhost:${MINIO_API_PORT:-9000} / :9001.
+# (app, db, garage). Receipt storage uses in-stack Garage unless S3_* are
+# overridden in .env. Garage S3 API: localhost:${GARAGE_API_PORT:-3900}.
 #
 # Plain `docker compose up -d` reuses the local image tag and does NOT pick up
 # changes from `git pull`. Always pass --build or use this script after pulling.

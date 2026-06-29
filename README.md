@@ -162,7 +162,7 @@ To verify migration files match the journal before deploy: `bun run db:verify-jo
 
 ### Coolify
 
-For self-hosted [Coolify](https://coolify.io) deploys (especially `ENOTFOUND minio` with Application + separate MinIO compose), see **[docs/COOLIFY.md](./docs/COOLIFY.md)**. Recommended: deploy [`docker-compose.coolify.yml`](./docker-compose.coolify.yml) as a single Compose resource.
+For self-hosted [Coolify](https://coolify.io) deploys (especially `ENOTFOUND garage` with Application + separate Garage compose), see **[docs/COOLIFY.md](./docs/COOLIFY.md)**. Recommended: deploy [`docker-compose.coolify.yml`](./docker-compose.coolify.yml) as a single Compose resource.
 
 ### 4. Sign-ups
 
@@ -194,9 +194,9 @@ beenvoice-web/
 ├── src/lib/              # auth, PDF, email, branding helpers
 ├── drizzle/              # SQL migrations
 ├── Dockerfile            # Production image (migrate + next start)
-├── docker-compose.yml           # App + Postgres + MinIO (deploy)
-├── docker-compose.coolify.yml     # Coolify Compose (app + db + minio)
-├── docker-compose.coolify-minio.yml # MinIO-only for Coolify Application pairing
+├── docker-compose.yml           # App + Postgres + Garage (deploy)
+├── docker-compose.coolify.yml     # Coolify Compose (app + db + garage)
+├── docker-compose.coolify-garage.yml # Garage-only for Coolify Application pairing
 ├── docker-compose.dev.yml # Postgres only (local dev)
 └── docs/                 # Architecture and UI guides
 ```
@@ -256,7 +256,7 @@ Business logic lives in `src/server/api/routers/` with Zod validation.
 | Doc | Contents |
 |-----|----------|
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Stack, routers, schema, auth, Docker, MCP |
-| [docs/COOLIFY.md](./docs/COOLIFY.md) | Coolify deploy paths and MinIO networking |
+| [docs/COOLIFY.md](./docs/COOLIFY.md) | Coolify deploy paths and Garage networking |
 | [docs/README.md](./docs/README.md) | Index of UI and product guides |
 | [AGENTS.md](./AGENTS.md) | Conventions for AI-assisted development |
 

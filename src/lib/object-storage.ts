@@ -22,7 +22,7 @@ type S3Module = typeof import("@aws-sdk/client-s3");
 let s3ModulePromise: Promise<S3Module> | null = null;
 let s3Client: InstanceType<S3Module["S3Client"]> | null = null;
 let s3DnsHintLogged = false;
-let s3BareMinioHintLogged = false;
+let s3BareGarageHintLogged = false;
 
 function shouldForcePathStyle(): boolean {
   const override = process.env.S3_FORCE_PATH_STYLE?.trim().toLowerCase();
@@ -31,19 +31,19 @@ function shouldForcePathStyle(): boolean {
   return Boolean(process.env.S3_ENDPOINT);
 }
 
-function logBareMinioEndpointHint(): void {
-  if (s3BareMinioHintLogged || process.env.NODE_ENV !== "production") return;
+function logBareGarageEndpointHint(): void {
+  if (s3BareGarageHintLogged || process.env.NODE_ENV !== "production") return;
   const endpoint = process.env.S3_ENDPOINT;
   if (!endpoint) return;
   try {
     const { hostname } = new URL(endpoint);
-    if (hostname !== "minio") return;
-    s3BareMinioHintLogged = true;
+    if (hostname !== "garage") return;
+    s3BareGarageHintLogged = true;
     console.warn(
-      "[object-storage] S3_ENDPOINT hostname is bare 'minio'. " +
+      "[object-storage] S3_ENDPOINT hostname is bare 'garage'. " +
         "That only resolves inside a single Docker Compose stack. " +
-        "Coolify Application + separate MinIO compose: set S3_ENDPOINT to " +
-        "SERVICE_URL_MINIO_9000 (public domain) or http://minio-<resource-uuid>:9000. " +
+        "Coolify Application + separate Garage compose: set S3_ENDPOINT to " +
+        "SERVICE_URL_GARAGE_3900 (public domain) or http://garage-<resource-uuid>:3900. " +
         "See docs/COOLIFY.md.",
     );
   } catch {
@@ -59,7 +59,7 @@ function logS3DnsHint(error: unknown): void {
   const endpoint = process.env.S3_ENDPOINT ?? "(AWS default)";
   console.error(
     `[object-storage] S3 DNS failed (${code}) for endpoint ${endpoint}. ` +
-      "Separate Coolify stacks cannot resolve bare 'minio' — use the internal hostname from the MinIO resource UI and enable Connect to Predefined Network on the app. See docs/COOLIFY.md.",
+      "Separate Coolify stacks cannot resolve bare 'garage' — use the internal hostname from the Garage resource UI and enable Connect to Predefined Network on the app. See docs/COOLIFY.md.",
   );
 }
 
@@ -76,7 +76,7 @@ async function getS3() {
   s3ModulePromise ??= import("@aws-sdk/client-s3");
   const mod = await s3ModulePromise;
   if (!s3Client) {
-    logBareMinioEndpointHint();
+    logBareGarageEndpointHint();
     s3Client = new mod.S3Client({
       region: process.env.S3_REGION ?? "us-east-1",
       endpoint: process.env.S3_ENDPOINT,
@@ -84,7 +84,7 @@ async function getS3() {
         accessKeyId: process.env.S3_ACCESS_KEY!,
         secretAccessKey: process.env.S3_SECRET_KEY!,
       },
-      // Required for MinIO and most S3-compatible endpoints (including HTTPS proxies).
+      // Required for Garage and most S3-compatible endpoints (including HTTPS proxies).
       forcePathStyle: shouldForcePathStyle(),
     });
   }

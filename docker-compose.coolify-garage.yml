@@ -1,38 +1,39 @@
+# Garage-only stack for Coolify when beenvoice runs as a separate Application resource.
+#
+# Deploy: Coolify → Docker Compose → compose file: docker-compose.coolify-garage.yml
+#
+# ── Pair with a beenvoice Application (pick ONE) ───────────────────────────────
+#
+# A) Public Garage URL (most reliable — no shared Docker network required)
+#    1. Redeploy this stack (includes SERVICE_FQDN_GARAGE_3900 below).
+#    2. Garage resource → assign a domain for port 3900 (e.g. s3.example.com).
+#    3. Copy SERVICE_URL_GARAGE_3900 from this resource's Environment tab.
+#    4. beenvoice Application → S3_ENDPOINT=<that URL> → redeploy beenvoice.
+#
+# B) Internal Docker DNS (same Coolify destination network)
+#    1. Garage resource → Advanced → enable "Connect to Predefined Network" → redeploy.
+#    2. beenvoice Application → same destination → enable "Connect to Predefined Network".
+#    3. beenvoice → S3_ENDPOINT=http://garage-<GARAGE_RESOURCE_UUID>:3900
+#
+# Recommended long-term: deploy docker-compose.coolify.yml as one stack (app+db+garage).
+# See docs/COOLIFY.md.
 services:
-  db:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-postgres}
-    volumes:
-      - beenvoice_dev_pg_data:/var/lib/postgresql/data
-    healthcheck:
-      test:
-        ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    restart: unless-stopped
-
-  # S3-compatible receipt storage for host dev (`bun dev`). API :3900.
   garage:
     image: dxflrs/garage:v2.3.0
     environment:
       GARAGE_DEFAULT_ACCESS_KEY: ${S3_ACCESS_KEY:-GK3515373e4c851ebaad366558}
       GARAGE_DEFAULT_SECRET_KEY: ${S3_SECRET_KEY:-7d37d093435a41f2aab8f13c19ba067d9776c90215f56614adad6ece597dbb34}
       GARAGE_DEFAULT_BUCKET: ${S3_BUCKET:-beenvoice-receipts}
+      SERVICE_FQDN_GARAGE_3900:
     configs:
       - source: garage_config
         target: /etc/garage.toml
     volumes:
-      - beenvoice_dev_garage_meta:/var/lib/garage/meta
-      - beenvoice_dev_garage_data:/var/lib/garage/data
+      - beenvoice_garage_meta:/var/lib/garage/meta
+      - beenvoice_garage_data:/var/lib/garage/data
     command: ["/garage", "server", "--single-node", "--default-bucket"]
-    ports:
-      - "${GARAGE_API_PORT:-3900}:3900"
+    expose:
+      - "3900"
     healthcheck:
       test: ["CMD", "/garage", "status"]
       interval: 5s
@@ -42,9 +43,8 @@ services:
     restart: unless-stopped
 
 volumes:
-  beenvoice_dev_pg_data:
-  beenvoice_dev_garage_meta:
-  beenvoice_dev_garage_data:
+  beenvoice_garage_meta:
+  beenvoice_garage_data:
 
 configs:
   garage_config:
