@@ -2,7 +2,10 @@ import { headers as nextHeaders } from "next/headers";
 import { auth } from "~/lib/auth";
 
 const MOBILE_AUTH_COOKIE_HEADER = "x-beenvoice-auth-cookie";
+const MOBILE_SESSION_TOKEN_HEADER = "x-beenvoice-session-token";
 const MAX_AUTH_COOKIE_HEADER_LENGTH = 16 * 1024;
+const MAX_SESSION_TOKEN_LENGTH = 255;
+const SESSION_TOKEN_PATTERN = /^[A-Za-z0-9._~+/=-]+$/;
 
 function looksLikeSessionCookie(cookie: string): boolean {
   return cookie.split(";").some((part) => {
@@ -29,16 +32,33 @@ export function headersWithAuthCookieFallback(headers: Headers): Headers {
 
   const mobileCookie = headers.get(MOBILE_AUTH_COOKIE_HEADER)?.trim();
   if (
-    !mobileCookie ||
-    mobileCookie.length > MAX_AUTH_COOKIE_HEADER_LENGTH ||
-    !looksLikeSessionCookie(mobileCookie)
+    mobileCookie &&
+    mobileCookie.length <= MAX_AUTH_COOKIE_HEADER_LENGTH &&
+    looksLikeSessionCookie(mobileCookie)
   ) {
-    return headers;
+    const nextHeaders = new Headers(headers);
+    nextHeaders.set("cookie", mobileCookie);
+    return nextHeaders;
   }
 
-  const nextHeaders = new Headers(headers);
-  nextHeaders.set("cookie", mobileCookie);
-  return nextHeaders;
+  const sessionToken = headers.get(MOBILE_SESSION_TOKEN_HEADER)?.trim();
+  if (
+    sessionToken &&
+    sessionToken.length <= MAX_SESSION_TOKEN_LENGTH &&
+    SESSION_TOKEN_PATTERN.test(sessionToken)
+  ) {
+    const nextHeaders = new Headers(headers);
+    nextHeaders.set(
+      "cookie",
+      [
+        `better-auth.session_token=${sessionToken}`,
+        `__Secure-better-auth.session_token=${sessionToken}`,
+      ].join("; "),
+    );
+    return nextHeaders;
+  }
+
+  return headers;
 }
 
 export function hasSessionCookie(headers: Headers): boolean {
