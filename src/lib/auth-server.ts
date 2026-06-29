@@ -3,7 +3,11 @@ import { auth } from "~/lib/auth";
 
 export function hasSessionCookie(headers: Headers): boolean {
   const cookie = headers.get("cookie") ?? "";
+  if (!cookie.trim()) return false;
+
   return (
+    cookie.includes("session_token=") ||
+    cookie.includes("session_data=") ||
     cookie.includes("better-auth.session_token=") ||
     cookie.includes("__Secure-better-auth.session_token=")
   );

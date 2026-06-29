@@ -6,11 +6,13 @@ import { entryHref, invoiceLabel, type TimeEntryListItem } from "~/lib/time-entr
 export function TimeEntryRow({
   entry,
   isLast,
+  onEdit,
 }: {
   entry: TimeEntryListItem;
   isLast?: boolean;
+  onEdit?: (entry: TimeEntryListItem) => void;
 }) {
-  const href = entryHref(entry);
+  const href = onEdit ? null : entryHref(entry);
   const rowClassName = cn(
     "flex items-start justify-between gap-4 py-3",
     !isLast && "border-border border-b",
@@ -50,6 +52,21 @@ export function TimeEntryRow({
     );
   }
 
+  if (onEdit) {
+    return (
+      <button
+        type="button"
+        onClick={() => onEdit(entry)}
+        className={cn(
+          rowClassName,
+          "-mx-2 flex w-full cursor-pointer px-2 text-left transition-colors hover:rounded-md hover:bg-muted/60",
+        )}
+      >
+        {content}
+      </button>
+    );
+  }
+
   return (
     <div className={rowClassName}>
       {content}
@@ -57,7 +74,13 @@ export function TimeEntryRow({
   );
 }
 
-export function TimeEntryList({ entries }: { entries: TimeEntryListItem[] }) {
+export function TimeEntryList({
+  entries,
+  onEdit,
+}: {
+  entries: TimeEntryListItem[];
+  onEdit?: (entry: TimeEntryListItem) => void;
+}) {
   const completed = entries.filter((e) => e.endedAt);
 
   if (completed.length === 0) return null;
@@ -69,6 +92,7 @@ export function TimeEntryList({ entries }: { entries: TimeEntryListItem[] }) {
           key={entry.id}
           entry={entry}
           isLast={index === completed.length - 1}
+          onEdit={onEdit}
         />
       ))}
     </>

@@ -19,6 +19,7 @@ import {
   putObject,
   RECEIPT_MAX_BYTES,
 } from "~/lib/object-storage";
+import { parseReceiptText } from "~/lib/receipt-parse";
 
 export { EXPENSE_CATEGORIES };
 
@@ -431,8 +432,7 @@ export const expensesRouter = createTRPCRouter({
       });
 
       if (
-        !receipt ||
-        receipt.expense.createdById !== ctx.session.user.id
+        receipt?.expense.createdById !== ctx.session.user.id
       ) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -446,5 +446,17 @@ export const expensesRouter = createTRPCRouter({
         .where(eq(expenseReceipts.id, input.id));
 
       return { success: true };
+    }),
+
+  suggestFromReceiptText: protectedProcedure
+    .input(z.object({ text: z.string().min(1).max(20_000) }))
+    .mutation(({ input }) => {
+      const parsed = parseReceiptText(input.text);
+      return {
+        amount: parsed.amount,
+        date: parsed.date,
+        description: parsed.vendor,
+        rawLines: parsed.rawLines,
+      };
     }),
 });

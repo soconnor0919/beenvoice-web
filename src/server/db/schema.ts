@@ -432,6 +432,9 @@ export const invoiceItems = createTable(
     rate: d.real().notNull(),
     amount: d.real().notNull(),
     position: d.integer().notNull().default(0), // NEW: position for ordering
+    timeEntryId: d
+      .varchar({ length: 255 })
+      .references(() => timeEntries.id, { onDelete: "set null" }),
     createdAt: d
       .timestamp()
       .default(sql`CURRENT_TIMESTAMP`)
@@ -448,6 +451,10 @@ export const invoiceItemsRelations = relations(invoiceItems, ({ one }) => ({
   invoice: one(invoices, {
     fields: [invoiceItems.invoiceId],
     references: [invoices.id],
+  }),
+  timeEntry: one(timeEntries, {
+    fields: [invoiceItems.timeEntryId],
+    references: [timeEntries.id],
   }),
 }));
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, and, desc, isNull, isNotNull, gte, lte } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { timeEntries, clients, invoices, invoiceItems, businesses } from "~/server/db/schema";
+import { timeEntries, clients, invoices, businesses } from "~/server/db/schema";
 import { TRPCError } from "@trpc/server";
 import type { db } from "~/server/db";
 import {
@@ -10,6 +10,12 @@ import {
   type ClockOutOutcome,
 } from "~/lib/time-clock";
 import { defaultDueDate, generateInvoiceNumber } from "~/lib/draft-invoice";
+import {
+  insertInvoiceLineForTimeEntry,
+  relinkTimeEntryToInvoice,
+  removeLinkedInvoiceItem,
+  syncLinkedInvoiceItem,
+} from "~/server/api/lib/time-entry-invoice-sync";
 
 type Db = typeof db;
 
@@ -55,37 +61,14 @@ async function addEntryToInvoice(
   rate: number,
   date: Date,
 ): Promise<{ id: string; invoiceNumber: string; invoicePrefix: string }> {
-  const amount = hours * rate;
-  const maxPosition = invoice.items.reduce((m, item) => Math.max(m, item.position), -1);
-
-  await database.insert(invoiceItems).values({
-    invoiceId: invoice.id,
-    date,
+  return insertInvoiceLineForTimeEntry(database, {
+    invoice,
+    entryId,
     description,
     hours,
     rate,
-    amount,
-    position: maxPosition + 1,
+    date,
   });
-
-  const subtotal = invoice.items.reduce((s, i) => s + i.amount, 0) + amount;
-  const newTotal = subtotal + (subtotal * invoice.taxRate) / 100;
-
-  await database
-    .update(invoices)
-    .set({ totalAmount: newTotal, updatedAt: new Date() })
-    .where(eq(invoices.id, invoice.id));
-
-  await database
-    .update(timeEntries)
-    .set({ invoiceId: invoice.id, updatedAt: new Date() })
-    .where(eq(timeEntries.id, entryId));
-
-  return {
-    id: invoice.id,
-    invoiceNumber: invoice.invoiceNumber,
-    invoicePrefix: invoice.invoicePrefix ?? "#",
-  };
 }
 
 async function findOrCreateDraftInvoice(
@@ -338,6 +321,7 @@ export const timeEntriesRouter = createTRPCRouter({
         clientId: z.string().optional().or(z.literal("")),
         invoiceId: z.string().optional().or(z.literal("")),
         rate: z.number().min(0).optional(),
+        startedAt: z.date().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -357,8 +341,19 @@ export const timeEntriesRouter = createTRPCRouter({
         clientId?: string | null;
         invoiceId?: string | null;
         rate?: number | null;
+        startedAt?: Date;
         updatedAt: Date;
       } = { updatedAt: new Date() };
+
+      if (input.startedAt !== undefined) {
+        if (input.startedAt > new Date()) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Start time cannot be in the future",
+          });
+        }
+        updates.startedAt = input.startedAt;
+      }
 
       if (input.description !== undefined) {
         updates.description = input.description;
@@ -563,9 +558,13 @@ export const timeEntriesRouter = createTRPCRouter({
     }),
 
   update: protectedProcedure
-    .input(updateSchema)
+    .input(
+      updateSchema.extend({
+        invoiceId: z.string().optional().or(z.literal("")),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input;
+      const { id, invoiceId: nextInvoiceId, ...data } = input;
 
       const existing = await ctx.db.query.timeEntries.findFirst({
         where: and(
@@ -574,6 +573,13 @@ export const timeEntriesRouter = createTRPCRouter({
         ),
       });
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Time entry not found" });
+
+      if (existing.endedAt == null) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Use updateRunning to edit the active timer",
+        });
+      }
 
       const clientId =
         data.clientId !== undefined ? data.clientId?.trim() || null : undefined;
@@ -585,15 +591,38 @@ export const timeEntriesRouter = createTRPCRouter({
         if (!client) throw new TRPCError({ code: "FORBIDDEN", message: "Client not found" });
       }
 
+      let hours = data.hours;
+      const startedAt = data.startedAt ?? existing.startedAt;
+      const endedAt = data.endedAt ?? existing.endedAt;
+
+      if (endedAt && (data.startedAt !== undefined || data.endedAt !== undefined || data.hours === undefined)) {
+        hours = computeHours(startedAt, endedAt);
+      }
+
       await ctx.db
         .update(timeEntries)
         .set({
           ...data,
           clientId,
-          notes: data.notes?.trim() ?? null,
+          hours,
+          notes: data.notes?.trim() ?? undefined,
           updatedAt: new Date(),
         })
         .where(eq(timeEntries.id, id));
+
+      const updated = await ctx.db.query.timeEntries.findFirst({
+        where: eq(timeEntries.id, id),
+      });
+
+      if (!updated) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Update failed" });
+      }
+
+      if (nextInvoiceId !== undefined) {
+        await relinkTimeEntryToInvoice(ctx.db, ctx.session.user.id, updated, nextInvoiceId.trim() || null);
+      } else {
+        await syncLinkedInvoiceItem(ctx.db, updated);
+      }
 
       return { success: true };
     }),
@@ -609,6 +638,7 @@ export const timeEntriesRouter = createTRPCRouter({
       });
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Time entry not found" });
 
+      await removeLinkedInvoiceItem(ctx.db, input.id);
       await ctx.db.delete(timeEntries).where(eq(timeEntries.id, input.id));
       return { success: true };
     }),

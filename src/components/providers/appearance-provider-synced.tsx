@@ -53,7 +53,7 @@ export function AppearanceProviderSynced({
     if (!serverColorMode?.colorMode) return;
     if (serverHydratedRef.current) return;
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setColorMode(serverColorMode.colorMode);
     serverHydratedRef.current = true;
   }, [serverColorMode?.colorMode]);

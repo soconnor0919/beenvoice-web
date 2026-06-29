@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { api } from "~/trpc/react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -9,9 +9,12 @@ import { EmptyState } from "~/components/layout/page-layout";
 import { Clock, Play } from "lucide-react";
 import { groupEntriesByDate } from "~/lib/time-entry-display";
 import { TimeEntryRow } from "~/components/time-clock/time-entry-list";
+import { TimeEntryEditDialog } from "~/components/time-clock/time-entry-edit-dialog";
+import type { TimeEntryListItem } from "~/lib/time-entry-display";
 
 export function TimeEntriesHistory() {
   const { data: entries, isLoading } = api.timeEntries.getAll.useQuery();
+  const [editEntryId, setEditEntryId] = useState<string | null>(null);
 
   const completedEntries = useMemo(
     () => (entries ?? []).filter((e) => e.endedAt),
@@ -57,25 +60,35 @@ export function TimeEntriesHistory() {
   }
 
   return (
-    <div className="space-y-6">
-      {grouped.map((group) => (
-        <Card key={group.dateKey}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-muted-foreground text-sm font-medium">
-              {group.label}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {group.entries.map((entry, index) => (
-              <TimeEntryRow
-                key={entry.id}
-                entry={entry}
-                isLast={index === group.entries.length - 1}
-              />
-            ))}
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+    <>
+      <div className="space-y-6">
+        {grouped.map((group) => (
+          <Card key={group.dateKey}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-muted-foreground text-sm font-medium">
+                {group.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {group.entries.map((entry, index) => (
+                <TimeEntryRow
+                  key={entry.id}
+                  entry={entry}
+                  isLast={index === group.entries.length - 1}
+                  onEdit={(item: TimeEntryListItem) => setEditEntryId(item.id)}
+                />
+              ))}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <TimeEntryEditDialog
+        entryId={editEntryId}
+        open={editEntryId != null}
+        onOpenChange={(open) => {
+          if (!open) setEditEntryId(null);
+        }}
+      />
+    </>
   );
 }

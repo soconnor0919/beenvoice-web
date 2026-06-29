@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getOptionalServerSession } from "~/lib/auth-server";
 import { getObject } from "~/lib/object-storage";
@@ -20,7 +20,7 @@ export async function GET(
     with: { expense: true },
   });
 
-  if (!receipt || receipt.expense.createdById !== session.user.id) {
+  if (receipt?.expense.createdById !== session.user.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

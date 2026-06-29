@@ -39,10 +39,17 @@ export function SignInForm({ allowRegistration }: SignInFormProps) {
     setLoading(false);
 
     if (error) {
+      const message = error.message?.toLowerCase() ?? "";
+      const rateLimited =
+        error.status === 429 ||
+        message.includes("too many") ||
+        message.includes("rate limit");
       toast.error(
-        error.message && error.message !== "Required"
-          ? error.message
-          : "Invalid email or password",
+        rateLimited
+          ? "Too many sign-in attempts. Please wait a moment and try again."
+          : error.message && error.message !== "Required"
+            ? error.message
+            : "Invalid email or password",
       );
       return;
     }

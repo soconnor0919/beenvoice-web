@@ -38,7 +38,8 @@ export async function fileToBase64(file: File): Promise<string> {
       }
       resolve(base64);
     };
-    reader.onerror = () => reject(reader.error);
+    reader.onerror = () =>
+      reject(reader.error instanceof Error ? reader.error : new Error("Failed to read file"));
     reader.readAsDataURL(file);
   });
 }

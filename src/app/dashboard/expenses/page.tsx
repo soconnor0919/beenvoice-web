@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { api } from "~/trpc/react";
 import { DashboardPageHeader } from "~/components/layout/page-header";
 import { DashboardPage, dashboardStatGridClass } from "~/components/layout/dashboard-page";
@@ -115,12 +115,6 @@ export default function ExpensesPage() {
     () => businesses.find((b) => b.isDefault)?.id ?? businesses[0]?.id ?? "",
     [businesses],
   );
-
-  useEffect(() => {
-    if (!open || dialogMode !== "create" || !defaultBusinessId || form.businessId)
-      return;
-    setForm((prev) => ({ ...prev, businessId: defaultBusinessId }));
-  }, [open, dialogMode, defaultBusinessId, form.businessId]);
 
   const create = api.expenses.create.useMutation({
     onSuccess: (expense) => {

@@ -37,10 +37,67 @@ import {
 } from "~/lib/time-clock";
 import { invoiceLabel } from "~/lib/time-entry-display";
 import { TimeEntryList } from "~/components/time-clock/time-entry-list";
+import { TimeEntryEditDialog } from "~/components/time-clock/time-entry-edit-dialog";
 
 const FEATURED_CLIENT_COUNT = 4;
 
 type StartMode = "now" | "pick" | "ago";
+
+function toDatetimeLocalValue(value: Date | string) {
+  const start = new Date(value);
+  start.setMinutes(start.getMinutes() - start.getTimezoneOffset());
+  return start.toISOString().slice(0, 16);
+}
+
+function RunningTextFields({
+  running,
+  updateRunningPending,
+  onDescriptionCommit,
+  onStartedAtCommit,
+}: {
+  running: { id: string; description: string | null; startedAt: Date };
+  updateRunningPending: boolean;
+  onDescriptionCommit: (description: string) => void;
+  onStartedAtCommit: (startedAt: Date) => void;
+}) {
+  const [title, setTitle] = useState(running.description ?? "");
+  const [runningStartedAt, setRunningStartedAt] = useState(() =>
+    toDatetimeLocalValue(running.startedAt),
+  );
+
+  return (
+    <>
+      <div className="space-y-2">
+        <Label htmlFor="clock-running-title">What are you working on?</Label>
+        <Input
+          id="clock-running-title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={() => onDescriptionCommit(title)}
+          placeholder="What are you working on?"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="clock-running-start">Started at</Label>
+        <Input
+          id="clock-running-start"
+          type="datetime-local"
+          value={runningStartedAt}
+          onChange={(e) => {
+            const value = e.target.value;
+            setRunningStartedAt(value);
+            if (!value) return;
+            const parsed = new Date(value);
+            if (Number.isNaN(parsed.getTime()) || parsed > new Date()) return;
+            onStartedAtCommit(parsed);
+          }}
+          disabled={updateRunningPending}
+        />
+      </div>
+    </>
+  );
+}
 
 export type TimeClockPanelProps = {
   defaultClientId?: string;
@@ -109,6 +166,7 @@ export function TimeClockPanel({
   const [startMode, setStartMode] = useState<StartMode>("now");
   const [pickedStart, setPickedStart] = useState("");
   const [minutesAgo, setMinutesAgo] = useState("30");
+  const [editEntryId, setEditEntryId] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const draftClientId = running ? (running.clientId ?? "") : clientId;
@@ -184,6 +242,18 @@ export function TimeClockPanel({
     },
     onError: (e) => toast.error(e.message),
   });
+
+  function handleRunningDescriptionCommit(nextTitle: string) {
+    if (!running) return;
+    const next = resolveClockDescription(nextTitle);
+    if (next === (running.description ?? "")) return;
+    updateRunning.mutate({ description: next });
+  }
+
+  function handleRunningStartedAtCommit(parsed: Date) {
+    if (!running) return;
+    updateRunning.mutate({ startedAt: parsed });
+  }
 
   const clockOut = api.timeEntries.clockOut.useMutation({
     onSuccess: (data) => {
@@ -496,6 +566,14 @@ export function TimeClockPanel({
             </>
           ) : (
             <>
+              <RunningTextFields
+                key={running.id}
+                running={running}
+                updateRunningPending={updateRunning.isPending}
+                onDescriptionCommit={handleRunningDescriptionCommit}
+                onStartedAtCommit={handleRunningStartedAtCommit}
+              />
+
               <div className="space-y-2">
                 <Label>Client</Label>
                 <div className="flex flex-wrap gap-2">
@@ -621,7 +699,10 @@ export function TimeClockPanel({
           </CardHeader>
           <CardContent>
             {todayEntries?.some((e) => e.endedAt) ? (
-              <TimeEntryList entries={todayEntries} />
+              <TimeEntryList
+                entries={todayEntries}
+                onEdit={(entry) => setEditEntryId(entry.id)}
+              />
             ) : (
               <p className="text-muted-foreground py-4 text-center text-sm">
                 No entries today.{" "}
@@ -637,6 +718,13 @@ export function TimeClockPanel({
         </Card>
       ) : null}
 
+      <TimeEntryEditDialog
+        entryId={editEntryId}
+        open={editEntryId != null}
+        onOpenChange={(open) => {
+          if (!open) setEditEntryId(null);
+        }}
+      />
     </div>
   );
 }

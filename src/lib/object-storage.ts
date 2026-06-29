@@ -73,9 +73,7 @@ async function withS3Diagnostics<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 async function getS3() {
-  if (!s3ModulePromise) {
-    s3ModulePromise = import("@aws-sdk/client-s3");
-  }
+  s3ModulePromise ??= import("@aws-sdk/client-s3");
   const mod = await s3ModulePromise;
   if (!s3Client) {
     logBareMinioEndpointHint();
