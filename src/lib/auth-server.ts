@@ -28,8 +28,6 @@ function looksLikeSessionCookie(cookie: string): boolean {
 }
 
 export function headersWithAuthCookieFallback(headers: Headers): Headers {
-  if (headers.get("cookie")?.trim()) return headers;
-
   const mobileCookie = headers.get(MOBILE_AUTH_COOKIE_HEADER)?.trim();
   if (
     mobileCookie &&
@@ -40,6 +38,8 @@ export function headersWithAuthCookieFallback(headers: Headers): Headers {
     nextHeaders.set("cookie", mobileCookie);
     return nextHeaders;
   }
+
+  if (headers.get("cookie")?.trim()) return headers;
 
   const sessionToken = headers.get(MOBILE_SESSION_TOKEN_HEADER)?.trim();
   if (
