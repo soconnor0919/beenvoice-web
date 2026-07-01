@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, lt } from "drizzle-orm";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { getEffectiveInvoiceStatus } from "~/lib/invoice-status";
 import { clients, invoices } from "~/server/db/schema";
@@ -172,6 +172,7 @@ export const dashboardRouter = createTRPCRouter({
       userInvoices,
       userClientsCount,
       recentInvoices,
+      monthInvoices,
       currentDraft,
     ] = await Promise.all([
       ctx.db.query.invoices.findMany({
@@ -193,6 +194,33 @@ export const dashboardRouter = createTRPCRouter({
           desc(invoices.invoiceNumber),
         ],
         limit: 5,
+        with: {
+          client: {
+            columns: { name: true },
+          },
+        },
+      }),
+      ctx.db.query.invoices.findMany({
+        where: and(
+          eq(invoices.createdById, userId),
+          gte(invoices.issueDate, new Date(now.getFullYear(), now.getMonth(), 1)),
+          lt(invoices.issueDate, new Date(now.getFullYear(), now.getMonth() + 1, 1)),
+        ),
+        orderBy: [
+          desc(invoices.issueDate),
+          desc(invoices.dueDate),
+          desc(invoices.invoiceNumber),
+        ],
+        columns: {
+          id: true,
+          invoicePrefix: true,
+          invoiceNumber: true,
+          totalAmount: true,
+          status: true,
+          dueDate: true,
+          issueDate: true,
+          currency: true,
+        },
         with: {
           client: {
             columns: { name: true },
@@ -227,6 +255,7 @@ export const dashboardRouter = createTRPCRouter({
       ...metrics,
       totalClients: userClientsCount,
       recentInvoices,
+      monthInvoices,
       currentDraft: currentDraft
         ? {
             id: currentDraft.id,

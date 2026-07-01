@@ -209,7 +209,10 @@ export const timeEntriesRouter = createTRPCRouter({
       ),
       with: {
         client: true,
-        invoice: { columns: { id: true, invoiceNumber: true, invoicePrefix: true } },
+        invoice: {
+          columns: { id: true, invoiceNumber: true, invoicePrefix: true },
+          with: { business: { columns: { id: true, name: true } } },
+        },
       },
     });
     return entry ?? null;
