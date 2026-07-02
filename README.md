@@ -141,6 +141,18 @@ docker compose build --no-cache app
 
 App listens on `${WEB_PORT:-${PORT:-3000}}` on the host (container port is always 3000). Postgres stays on the internal compose network.
 
+### Scheduled recurring invoices
+
+The app container does not run a cron daemon. It starts the web server with
+`bun migrate.ts && bun run start`, and recurring invoice generation only happens
+when something calls `POST /api/cron/generate-recurring` with
+`Authorization: Bearer $CRON_SECRET`.
+
+- **Coolify deploys:** use a Coolify scheduled task to call the endpoint.
+- **Full Docker deploys:** use host cron, a small scheduler sidecar, or an
+  external scheduler to call
+  `http://localhost:${WEB_PORT:-${PORT:-3000}}/api/cron/generate-recurring`.
+
 ### 3. Updating an existing deploy
 
 ```bash
